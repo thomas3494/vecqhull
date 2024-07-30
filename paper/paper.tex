@@ -1,0 +1,36 @@
+\documentclass{article}
+
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{calculator}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{graphs}
+\usetikzlibrary{quotes}
+\usetikzlibrary{decorations.pathreplacing}
+\usepackage{xcolor}
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+\newcommand{\glasgowcomment}[2]{{\textbf #1: }{\textrm \textsf #2}}
+\newcommand{\tkcomment}[1]{\glasgowcomment{TK}{\color{orange} #1}}
+\DeclareMathOperator*{\argmax}{argmax}
+\DeclareMathOperator*{\argmin}{argmin}
+
+\title{On the Energy Portability of Vectorized Quickhull}
+
+\begin{document}
+
+\maketitle
+
+\include{abstract}
+
+\bibliographystyle{plain}
+\bibliography{paper}
+
+\end{document}

@@ -1,0 +1,21 @@
+\begin{abstract}
+    For optimizing both runtime and energy usage, an application will have to
+    leverage the SIMD, or vector-instructions of a processor.
+
+    The energy consumption per clock cycle can be drastically reduced by
+    simplifying the instruction set and keeping the number of registers small.
+    However, this may decrease performance, requiring more cycles to solve
+    a problem. For this reason an energy comparison between processors is not
+    as simple as looking at the specs of the processor.
+
+    In order to investigate these trade-offs in a realistic setting, we have
+    vectorized the Quickhull algorithm. This is an important building block in
+    computational geometry, and requires both significant computation, as well
+    as non-trivial data-movement. It also features heavy register pressure.
+
+    This is implemented in Highway, a C++ library that can generate vectorized
+    code for a wide variety of hardware.
+
+    We compare the energy efficiency on low-energy single-board computers for
+    the RVV 1.0, avx2, avx512, and NEON instruction sets.
+\end{abstract}

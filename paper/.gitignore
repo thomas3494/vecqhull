@@ -1,0 +1,11 @@
+*.aux
+*.log
+*.out
+*.vrb
+*.bbl
+*.blg
+*.pdf
+*.fdb_latexmk
+*.toc
+*.fls
+*.cut
