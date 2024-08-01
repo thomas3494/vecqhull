@@ -94,7 +94,6 @@ void FindLeftRight(size_t n, Point *P, Point *left_out, Point *right_out)
     *right_out = q;
 }
 
-
 void FindLeftRightV(size_t n, Point * HWY_RESTRICT P, 
                     Point *left_out, Point *right_out)
 {
@@ -108,7 +107,7 @@ void FindLeftRightV(size_t n, Point * HWY_RESTRICT P,
     lefty  = y_coor;
     righty = y_coor;
 
-    size_t i = 0;
+    size_t i = Lanes(d);
     for (; i + Lanes(d) <= n; i += Lanes(d)) {
         LoadInterleaved2(d, (double *)(P + i), x_coor, y_coor);
         auto mask1 = Or(x_coor < leftx, 
@@ -141,10 +140,10 @@ void FindLeftRightV(size_t n, Point * HWY_RESTRICT P,
     double rightx_arr[Lanes(d)];
     double righty_arr[Lanes(d)];
 
-    Store(leftx,  d, leftx_arr);
-    Store(rightx, d, rightx_arr);
-    Store(lefty,  d, lefty_arr);
-    Store(righty, d, righty_arr);
+    StoreU(leftx,  d, leftx_arr);
+    StoreU(rightx, d, rightx_arr);
+    StoreU(lefty,  d, lefty_arr);
+    StoreU(righty, d, righty_arr);
 
     size_t left_ind = 0;
     size_t right_ind = 0;
@@ -167,6 +166,74 @@ void FindLeftRightV(size_t n, Point * HWY_RESTRICT P,
     left_out->y = lefty_arr[left_ind];
     right_out->x = rightx_arr[right_ind];
     right_out->y = righty_arr[right_ind];
+}
+
+void MinMaxV(size_t n, Point *P, Point p, Point u, Point q, 
+             Point *max1_out, Point *max2_out)
+{
+    const ScalableTag<double> d;
+
+    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor, 
+                             px, py, ux, uy, qx, qy, omax1, omax2;
+    LoadInterleaved2(d, (double *)P, x_coor, y_coor);
+
+    max1x = x_coor;
+    max1y = x_coor;
+    max2x = y_coor;
+    max2y = y_coor;
+    px = Set(d, p.x);
+    py = Set(d, p.y);
+    ux = Set(d, u.x);
+    uy = Set(d, u.y);
+    qx = Set(d, q.x);
+    qy = Set(d, q.y);
+
+    omax1 = orientV(px, py, x_coor, y_coor, ux, uy);
+    omax2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+
+    size_t i = Lanes(d);
+    for (; i + Lanes(d) <= n; i += Lanes(d)) {
+        LoadInterleaved2(d, (double *)(P + i), x_coor, y_coor);
+        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+    if (i < n) {
+        /* Still have < Lanes(d) elements left. It is not a problem to
+         * check some elements twice, so we just take the last Lanes(d)
+         * elements. */
+        i = n - Lanes(d);
+        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+
+    /* Horizontal reduction. */
+    auto hmax1 = MaxOfLanes(d, omax1);
+    auto hmax2 = MaxOfLanes(d, omax2);
+    auto max1_ind = Iota(d, 0);
+    auto max2_ind = Iota(d, 0);
+    
+    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
+    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
+
+    int i1 = GetLane(SumOfLanes(d, max1_ind));
+    int i2 = GetLane(SumOfLanes(d, max2_ind));
+
+    max1_out->x = ExtractLane(max1x, i1);
+    max1_out->y = ExtractLane(max1y, i1);
+    max2_out->x = ExtractLane(max2x, i2);
+    max2_out->y = ExtractLane(max2y, i2);
 }
 
 double wtime(void)

@@ -2,6 +2,9 @@
 #define QUICKHULL_GUARD
 
 #include <cstddef>
+#include <hwy/highway.h>
+
+using namespace hwy::HWY_NAMESPACE;
 
 /* TODO make sure we can use this library from C code (and everything having
  * a C FFI). */
@@ -44,11 +47,25 @@ inline double orient(Point p, Point q, Point u)
     return (p.x - q.x) * (u.y - q.y) - (p.y - q.y) * (u.x - q.x);
 }
 
-/* Naive */
+inline Vec<ScalableTag<double>> orientV(Vec<ScalableTag<double>> px,
+                                        Vec<ScalableTag<double>> py,
+                                        Vec<ScalableTag<double>> qx,
+                                        Vec<ScalableTag<double>> qy,
+                                        Vec<ScalableTag<double>> ux,
+                                        Vec<ScalableTag<double>> uy)
+{
+    return (px - qx) * (uy - qy) - (py - qy) * (ux - qx);
+}
+
+/* Scalar */
 void FindLeftRight(size_t n, Point *P, Point *left_out, Point *right_out);
 
 /* Vectorized */
 void FindLeftRightV(size_t n, Point *P, Point *left_out, Point *right_out);
+
+/* Vectorized */
+void MinMaxV(size_t n, Point *P, Point p, Point u, Point q,
+             Point *min_out, Point *max_out);
 
 /* Wallclock time in seconds */
 double wtime(void);
