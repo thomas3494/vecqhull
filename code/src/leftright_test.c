@@ -10,33 +10,43 @@ int main(int argc, char **argv)
     }
 
     size_t n;
-    Point *P = input_b(&n);
+    Points P = input_b(&n);
 
+    size_t left, right;
     Point p, q;
 
     double time1 = wtime();
 
-    FindLeftRight(n, P, &p, &q);
+    FindLeftRightV(n, P, &left, &right);
+    p = {P.x[left],  P.y[left]};
+    q = {P.x[right], P.y[right]};
 
     double time2 = wtime();
     
-    printf("We found left-point (%e, %e) and right point (%e, %e)\n",
+    printf("Vectorized found left-point (%e, %e) and right point (%e, %e)\n",
             p.x, p.y, q.x, q.y);
+    /* Bandwidth computed from the entire input, in reality we will not
+     * read in most y-coordinates. */
     printf("This took %lf ms, or %lf GB/s\n", (time2 - time1) * 1e3,
                 (double)n * sizeof(Point) / (time2 - time1) / 1e9);
 
-    double time3 = wtime();
+    time1 = wtime();
 
-    FindLeftRightV(n, P, &p, &q);
+    FindLeftRight(n, P, &left, &right);
+    p = {P.x[left],  P.y[left]};
+    q = {P.x[right], P.y[right]};
 
-    double time4 = wtime();
+    time2 = wtime();
     
-    printf("We found left-point (%e, %e) and right point (%e, %e)\n",
+    printf("Scalar found left-point (%e, %e) and right point (%e, %e)\n",
             p.x, p.y, q.x, q.y);
-    printf("This took %lf ms, or %lf GB/s\n", (time4 - time3) * 1e3,
-                (double)n * sizeof(Point) / (time4 - time3) / 1e9);
+    /* Bandwidth computed from the entire input, in reality we will not
+     * read in most y-coordinates. */
+    printf("This took %lf ms, or %lf GB/s\n", (time2 - time1) * 1e3,
+                (double)n * sizeof(Point) / (time2 - time1) / 1e9);
 
-    free(P);
+    free(P.x);
+    free(P.y);
 
     return EXIT_SUCCESS;
 }

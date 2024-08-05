@@ -23,13 +23,10 @@ typedef struct {
 void PrintPoints(size_t n, Point *P);
 
 /* pbbs 2d sequence format on stdin */
-Point *input(size_t *n /* out */);
+Points input(size_t *n /* out */);
 
 /* Binary on stdin */
-Point *input_b(size_t *n /* out */);
-
-/* Binary on stdin */
-Points input_b_soa(size_t *n /* out */);
+Points input_b(size_t *n /* out */);
 
 inline size_t ceildiv(size_t a, size_t b)
 {
@@ -66,21 +63,10 @@ inline Vec<ScalableTag<double>> orientV(Vec<ScalableTag<double>> px,
 }
 
 /* Scalar */
-void FindLeftRight(size_t n, Point *P, Point *left_out, Point *right_out);
+void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out);
 
 /* Vectorized */
-void FindLeftRightV(size_t n, Point *P, Point *left_out, Point *right_out);
-
-/* Vectorized */
-void FindLeftRightV_soa(size_t n, Points P, 
-                        size_t *left_out, size_t *right_out);
-
-/* Vectorized */
-void MinMaxV(size_t n, Point *P, Point p, Point u, Point q,
-             Point *min_out, Point *max_out);
-
-void MinMaxV_soa(size_t n, Points P, Point p, Point u, Point q,
-                 Point *min_out, Point *max_out);
+void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out);
 
 void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
                    Point *argmax1_out, Point *argmax2_out,

@@ -13,12 +13,12 @@ int main(int argc, char **argv)
     }
 
     size_t n;
-    Points P = input_b_soa(&n);
+    Points P = input_b(&n);
 
     double time1 = wtime();
 
     size_t left, right;
-    FindLeftRightV_soa(n, P, &left, &right);
+    FindLeftRightV(n, P, &left, &right);
     Point p = {P.x[left],  P.y[left]};
     Point q = {P.x[right], P.y[right]};
 
