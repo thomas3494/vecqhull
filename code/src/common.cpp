@@ -76,6 +76,35 @@ Point *input_b(size_t *n /* out param */)
     return P;
 }
 
+Points input_b_soa(size_t *n /* out param */)
+{
+    size_t size = 1000;
+    Points P;
+    P.x = (double *)malloc(size * sizeof(double));
+    P.y = (double *)malloc(size * sizeof(double));
+
+    size_t i = 0;
+    double x, y;
+    while ((fread(&x, sizeof(double), 1, stdin) == 1) &&
+           (fread(&y, sizeof(double), 1, stdin) == 1))
+    {
+        P.x[i] = x;
+        P.y[i] = y;
+        i++;
+        if (i >= size) {
+            size *= 2;
+            P.x = (double *)realloc(P.x, size * sizeof(Point));
+            P.y = (double *)realloc(P.y, size * sizeof(Point));
+        }
+    }
+
+    *n = i;
+    P.x = (double *)realloc(P.x, i * sizeof(Point));
+    P.y = (double *)realloc(P.y, i * sizeof(Point));
+
+    return P;
+}
+
 void FindLeftRight(size_t n, Point *P, Point *left_out, Point *right_out)
 {
     Point p = P[0];
@@ -122,7 +151,10 @@ void FindLeftRightV(size_t n, Point * HWY_RESTRICT P,
     if (i < n) {
         /* Still have < Lanes(d) elements left. It is not a problem to
          * check some elements twice, so we just take the last Lanes(d)
-         * elements. */
+         * elements. 
+         * TODO does not work if n < Lanes(d). Partial loads and stores? 
+         * Then again, we are probably going to use Points instead of Point,
+         * so may be a waste of time to handle this edge case. */
         i = n - Lanes(d);
         LoadInterleaved2(d, (double *)(P + i), x_coor, y_coor);
         auto mask1 = Or(x_coor < leftx, 
@@ -166,6 +198,146 @@ void FindLeftRightV(size_t n, Point * HWY_RESTRICT P,
     left_out->y = lefty_arr[left_ind];
     right_out->x = rightx_arr[right_ind];
     right_out->y = righty_arr[right_ind];
+}
+
+/* Other than eliding the unpack, it we also need only the x-coordinate
+ * of most points, resulting in less bandwidth. But that is slightly more
+ * involved because we store keep indices instead of points as we may need
+ * the y-coordinate for the tie-break. Adepted from 
+ * https://en.algorithmica.org/hpc/algorithms/argmin */
+void FindLeftRightV_soa(size_t n, Points P, size_t *left_out, size_t *right_out)
+{
+    const ScalableTag<double> d;
+    const ScalableTag<size_t> di;
+
+    Vec<ScalableTag<double>> leftx, lefty, rightx, righty, x_coor, y_coor;
+    /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4) 
+     * vtestpd has a throughput of 1, wheareas min, max, blend, vcmppd have a 
+     * throughput of 0.5 or less. For this reason we unroll the loop. */
+    Vec<ScalableTag<double>> x_coor2, y_coor2;
+    Vec<ScalableTag<size_t>> l_i, r_i;
+    l_i = Iota(di, 0);
+    r_i = Iota(di, 0);
+
+    /* Ideally, use LoadN to keep asan happy, but that is from very new
+     * hwy version not present in most package managers. */
+    auto last_mask = (Iota(d, 0) < Set(d, n));
+    x_coor = MaskedLoad(last_mask, d, P.x);
+    y_coor = MaskedLoad(last_mask, d, P.y);
+
+    leftx  = x_coor;
+    rightx = x_coor;
+    lefty  = y_coor;
+    righty = y_coor;
+
+    Mask<ScalableTag<double>> mask1, mask2;
+    size_t i = Lanes(d);
+    for (; i + 2 * Lanes(d) <= n; i += 2 * Lanes(d)) {
+        x_coor = LoadU(d, P.x + i);
+        x_coor2 = LoadU(d, P.x + i + Lanes(d));
+        mask1 = (Min(x_coor, x_coor2) <= leftx);
+        mask2 = (Max(x_coor, x_coor2) >= rightx);
+        /* Unlikely assuming no adverserial input. */
+        if (HWY_UNLIKELY(!AllFalse(d, Or(mask1, mask2)))) {
+            y_coor = LoadU(d, P.y + i);
+            mask1 = Or((x_coor < leftx), 
+                       And((x_coor == leftx), (y_coor < lefty)));
+            mask2 = Or((x_coor > rightx), 
+                       And((x_coor == rightx), (y_coor > righty)));
+            leftx = IfThenElse(mask1,  x_coor, leftx);
+            lefty = IfThenElse(mask1,  y_coor, lefty);
+            rightx = IfThenElse(mask2, x_coor, rightx);
+            righty = IfThenElse(mask2, y_coor, righty);
+            l_i = IfThenElse(RebindMask(di, mask1), Iota(di, i), l_i);
+            r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i), r_i);
+
+            y_coor2 = LoadU(d, P.y + i + Lanes(d));
+            mask1 = Or((x_coor2 < leftx), 
+                       And((x_coor2 == leftx), (y_coor2 < lefty)));
+            mask2 = Or((x_coor2 > rightx), 
+                       And((x_coor2 == rightx), (y_coor2 > righty)));
+            leftx = IfThenElse(mask1,  x_coor2, leftx);
+            lefty = IfThenElse(mask1,  y_coor2, lefty);
+            rightx = IfThenElse(mask2, x_coor2, rightx);
+            righty = IfThenElse(mask2, y_coor2, righty);
+            l_i = IfThenElse(RebindMask(di, mask1), Iota(di, i + Lanes(d)), l_i);
+            r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i + Lanes(d)), r_i);
+        }
+    }
+    for (; i + Lanes(d) <= n; i += Lanes(d)) {
+        x_coor = LoadU(d, P.x + i);
+        mask1 = (x_coor <= leftx);
+        mask2 = (x_coor >= rightx);
+        /* Unlikely assuming no adverserial input. */
+        if (HWY_UNLIKELY(!AllFalse(d, Or(mask1, mask2)))) {
+            y_coor = LoadU(d, P.y + i);
+            mask1 = Or((x_coor < leftx), 
+                       And((x_coor == leftx), (y_coor < lefty)));
+            mask2 = Or((x_coor > rightx), 
+                       And((x_coor == rightx), (y_coor > righty)));
+            leftx = IfThenElse(mask1,  x_coor, leftx);
+            lefty = IfThenElse(mask1,  y_coor, lefty);
+            rightx = IfThenElse(mask2, x_coor, rightx);
+            righty = IfThenElse(mask2, y_coor, righty);
+            l_i = IfThenElse(RebindMask(di, mask1), Iota(di, i), l_i);
+            r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i), r_i);
+        }
+    }
+    if (i < n) {
+        /* Keeps asan happy, but is not in the hwy from recent package 
+         * managers */
+//        x_coor = LoadN(d, P.x + i, n - i);
+        auto last_mask = (Iota(d, 0) < Set(d, n - i));
+        x_coor = MaskedLoad(last_mask, d, P.x + i);
+        mask1 = And((x_coor <= leftx), last_mask);
+        mask2 = And((x_coor >= rightx), last_mask);
+        /* Unlikely assuming no adverserial input. */
+        if (HWY_UNLIKELY(!AllFalse(d, Or(mask1, mask2)))) {
+            y_coor = LoadU(d, P.y + i);
+            mask1 = And(Or((x_coor < leftx),
+                           And((x_coor == leftx), (y_coor < lefty))),
+                        last_mask);
+            mask2 = And(Or((x_coor > rightx),
+                           And((x_coor == rightx), (y_coor > righty))),
+                        last_mask);
+            leftx = IfThenElse(mask1,  x_coor, leftx);
+            lefty = IfThenElse(mask1,  y_coor, lefty);
+            rightx = IfThenElse(mask2, x_coor, rightx);
+            righty = IfThenElse(mask2, y_coor, righty);
+            l_i = IfThenElse(RebindMask(di, mask1), Iota(di, i), l_i);
+            r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i), r_i);
+        }
+    }
+
+    double leftx_arr[Lanes(d)];
+    double lefty_arr[Lanes(d)];
+    double rightx_arr[Lanes(d)];
+    double righty_arr[Lanes(d)];
+
+    StoreU(leftx,  d, leftx_arr);
+    StoreU(rightx, d, rightx_arr);
+    StoreU(lefty,  d, lefty_arr);
+    StoreU(righty, d, righty_arr);
+
+    size_t left_ind = 0;
+    size_t right_ind = 0;
+    for (size_t i = 1; i < min(Lanes(d), n); i++) {
+        if ((leftx_arr[i] < leftx_arr[left_ind]) ||
+                ((leftx_arr[i] == leftx_arr[left_ind]) &&
+                    (lefty_arr[i] < lefty_arr[left_ind])))
+        {
+            left_ind = i;
+        }
+        if ((rightx_arr[i] > rightx_arr[right_ind]) ||
+                ((rightx_arr[i] == rightx_arr[right_ind]) &&
+                    (righty_arr[i] > righty_arr[right_ind])))
+        {
+            right_ind = i;
+        }
+    }
+
+    *left_out  = ExtractLane(l_i, left_ind);
+    *right_out = ExtractLane(r_i, right_ind);
 }
 
 void MinMaxV(size_t n, Point *P, Point p, Point u, Point q, 

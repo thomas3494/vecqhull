@@ -26,8 +26,10 @@ int main(int argc, char **argv)
     printf("Point furthest to the left is (%e, %e)\n"
            "Point furthest to the right is (%e, %e)\n",
             argmax1.x, argmax1.y, argmax2.x, argmax2.y);
-    printf("This took %lf ms, or %lf gflops\n", (time2 - time1) * 1e3,
-                14.0 * n / (time2 - time1) / 1e9);
+    double duration = time2 - time1;
+    printf("This took %lf ms, or %lf gflops or %lf GB/s\n", duration * 1e3,
+                14.0 * n / duration / 1e9,
+                (double)n * sizeof(Point) / duration / 1e9);
 
     free(P);
 

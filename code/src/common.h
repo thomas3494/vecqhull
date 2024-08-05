@@ -14,6 +14,11 @@ typedef struct {
     double y;
 } Point;
 
+typedef struct {
+    double *x;
+    double *y;
+} Points;
+
 /* pbbs 2d sequence format */
 void PrintPoints(size_t n, Point *P);
 
@@ -22,6 +27,9 @@ Point *input(size_t *n /* out */);
 
 /* Binary on stdin */
 Point *input_b(size_t *n /* out */);
+
+/* Binary on stdin */
+Points input_b_soa(size_t *n /* out */);
 
 inline size_t ceildiv(size_t a, size_t b)
 {
@@ -62,6 +70,10 @@ void FindLeftRight(size_t n, Point *P, Point *left_out, Point *right_out);
 
 /* Vectorized */
 void FindLeftRightV(size_t n, Point *P, Point *left_out, Point *right_out);
+
+/* Vectorized */
+void FindLeftRightV_soa(size_t n, Points P, 
+                        size_t *left_out, size_t *right_out);
 
 /* Vectorized */
 void MinMaxV(size_t n, Point *P, Point p, Point u, Point q,
