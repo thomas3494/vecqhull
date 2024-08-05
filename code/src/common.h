@@ -20,7 +20,7 @@ typedef struct {
 } Points;
 
 /* pbbs 2d sequence format */
-void PrintPoints(size_t n, Point *P);
+void PrintPoints(size_t n, Points P);
 
 /* pbbs 2d sequence format on stdin */
 Points input(size_t *n /* out */);

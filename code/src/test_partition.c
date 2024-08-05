@@ -14,6 +14,7 @@ int main(int argc, char **argv)
 
     size_t n;
     Points P = input_b(&n);
+    printf("n = %zu\n", n);
 
     double time1 = wtime();
 
@@ -37,6 +38,7 @@ int main(int argc, char **argv)
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
     printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1.x, r1.y, r2.x, r2.y);
+    printf("%zu points to the left, %zu points to the right\n", total1, total2);
 
     size_t wrong = 0;
     for (size_t i = 0; i < total1; i++) {

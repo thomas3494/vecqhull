@@ -92,13 +92,13 @@ void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out)
     size_t right = 0;
 
     for (size_t i = 1; i < n; i++) {
-        if (P.x[i] < P.x[left] 
-                || (P.x[i] == P.x[left] && P.y[i] < P.y[left])) 
+        if (P.x[i] < P.x[left]
+                || (P.x[i] == P.x[left] && P.y[i] < P.y[left]))
         {
             left = i;
         }
-        if (P.x[i] > P.x[right] || 
-                (P.x[i] == P.x[right] && P.y[i] > P.y[right])) 
+        if (P.x[i] > P.x[right] ||
+                (P.x[i] == P.x[right] && P.y[i] > P.y[right]))
         {
             right = i;
         }
@@ -108,7 +108,7 @@ void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = right;
 }
 
-/* Adepted from 
+/* Adepted from
  * https://en.algorithmica.org/hpc/algorithms/argmin */
 void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
 {
@@ -116,8 +116,8 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     const ScalableTag<size_t> di;
 
     Vec<ScalableTag<double>> leftx, lefty, rightx, righty, x_coor, y_coor;
-    /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4) 
-     * vtestpd has a throughput of 1, wheareas min, max, blend, vcmppd have a 
+    /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4)
+     * vtestpd has a throughput of 1, wheareas min, max, blend, vcmppd have a
      * throughput of 0.5 or less. For this reason we unroll the loop. */
     Vec<ScalableTag<double>> x_coor2, y_coor2;
     Vec<ScalableTag<size_t>> l_i, r_i;
@@ -137,9 +137,9 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     if ((n - i) % (2 * Lanes(d)) == Lanes(d)) {
         x_coor = LoadU(d, P.x + i);
         y_coor = LoadU(d, P.y + i);
-        mask1 = Or((x_coor < leftx), 
+        mask1 = Or((x_coor < leftx),
                    And((x_coor == leftx), (y_coor < lefty)));
-        mask2 = Or((x_coor > rightx), 
+        mask2 = Or((x_coor > rightx),
                    And((x_coor == rightx), (y_coor > righty)));
         leftx = IfThenElse(mask1,  x_coor, leftx);
         lefty = IfThenElse(mask1,  y_coor, lefty);
@@ -158,9 +158,9 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
         /* Unlikely assuming no adverserial input. */
         if (HWY_UNLIKELY(!AllFalse(d, Or(mask1, mask2)))) {
             y_coor = LoadU(d, P.y + i);
-            mask1 = Or((x_coor < leftx), 
+            mask1 = Or((x_coor < leftx),
                        And((x_coor == leftx), (y_coor < lefty)));
-            mask2 = Or((x_coor > rightx), 
+            mask2 = Or((x_coor > rightx),
                        And((x_coor == rightx), (y_coor > righty)));
             leftx = IfThenElse(mask1,  x_coor, leftx);
             lefty = IfThenElse(mask1,  y_coor, lefty);
@@ -170,17 +170,17 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
             r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i), r_i);
 
             y_coor2 = LoadU(d, P.y + i + Lanes(d));
-            mask1 = Or((x_coor2 < leftx), 
+            mask1 = Or((x_coor2 < leftx),
                        And((x_coor2 == leftx), (y_coor2 < lefty)));
-            mask2 = Or((x_coor2 > rightx), 
+            mask2 = Or((x_coor2 > rightx),
                        And((x_coor2 == rightx), (y_coor2 > righty)));
             leftx = IfThenElse(mask1,  x_coor2, leftx);
             lefty = IfThenElse(mask1,  y_coor2, lefty);
             rightx = IfThenElse(mask2, x_coor2, rightx);
             righty = IfThenElse(mask2, y_coor2, righty);
-            l_i = IfThenElse(RebindMask(di, mask1), 
+            l_i = IfThenElse(RebindMask(di, mask1),
                              Iota(di, i + Lanes(d)), l_i);
-            r_i = IfThenElse(RebindMask(di, mask2), 
+            r_i = IfThenElse(RebindMask(di, mask2),
                              Iota(di, i + Lanes(d)), r_i);
         }
     }
@@ -216,25 +216,47 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = ExtractLane(r_i, right_ind);
 }
 
+static void qhull_hmax(Vec<ScalableTag<double>> omax1,
+                       Vec<ScalableTag<double>> omax2,
+                       Vec<ScalableTag<double>> max1x,
+                       Vec<ScalableTag<double>> max1y,
+                       Vec<ScalableTag<double>> max2x,
+                       Vec<ScalableTag<double>> max2y,
+                       Point *max1_out, Point *max2_out)
+{
+    const ScalableTag<double> d;
+    auto hmax1 = MaxOfLanes(d, omax1);
+    auto hmax2 = MaxOfLanes(d, omax2);
+    auto max1_ind = Iota(d, 0);
+    auto max2_ind = Iota(d, 0);
+
+    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
+    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
+
+    int i1 = GetLane(SumOfLanes(d, max1_ind));
+    int i2 = GetLane(SumOfLanes(d, max2_ind));
+
+    max1_out->x = ExtractLane(max1x, i1);
+    max1_out->y = ExtractLane(max1y, i1);
+    max2_out->x = ExtractLane(max2x, i2);
+    max2_out->y = ExtractLane(max2y, i2);
+}
+
 /* Adepted from
  * https://arxiv.org/pdf/1704.08579
- * and 
+ * and
  * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
  */
-void TriPartitionV(size_t n, Points P, Point p, Point u, Point q, 
+void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
                    Point *max1_out, Point *max2_out,
                    size_t *c1_out, size_t *c2_out)
 {
     const ScalableTag<double> d;
 
-    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor, 
+    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor,
                              px, py, ux, uy, qx, qy, omax1, omax2,
                              vLx, vLy, vRx, vRy;
     Mask<ScalableTag<double>> maskL, maskR;
-
-
-    omax1 = Set(d, -DBL_MAX);
-    omax2 = Set(d, -DBL_MAX);
 
     px = Set(d, p.x);
     py = Set(d, p.y);
@@ -243,10 +265,66 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     qx = Set(d, q.x);
     qy = Set(d, q.y);
 
-    if (n < 2 * Lanes(d)) {
-        /* TODO implement scalar base case */
+    if (HWY_UNLIKELY((n < Lanes(d)))) {
+        x_coor = LoadN(d, P.x, n);
+        y_coor = LoadN(d, P.y, n);
+        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        o1 = IfThenElse(FirstN(d, n), o1, Set(d, -DBL_MAX));
+        o2 = IfThenElse(FirstN(d, n), o2, Set(d, -DBL_MAX));
+
+        *c1_out = CompressBlendedStore(x_coor, (o1 > Zero(d)), d, P.x);
+        CompressBlendedStore(y_coor, (o1 > Zero(d)), d, P.y);
+        *c2_out = CompressBlendedStore(x_coor, (o2 > Zero(d)), d, P.x + *c1_out);
+        CompressBlendedStore(y_coor, (o2 > Zero(d)), d, P.y + *c1_out);
+        qhull_hmax(o1, o2, x_coor, y_coor, x_coor, y_coor,
+                   max1_out, max2_out);
+        return;
+    } else if (HWY_UNLIKELY(n < 2 * Lanes(d))) {
+        x_coor = LoadU(d, P.x);
+        y_coor = LoadU(d, P.y);
+        omax1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        omax2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+
+        auto x_coor2 = LoadN(d, P.x + Lanes(d), n % Lanes(d));
+        auto y_coor2 = LoadN(d, P.y + Lanes(d), n % Lanes(d));
+        auto o1 = orientV(px, py, x_coor2, y_coor2, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor2, y_coor2, qx, qy);
+        o1 = IfThenElse(FirstN(d, n % Lanes(d)), o1, Set(d, -DBL_MAX));
+        o2 = IfThenElse(FirstN(d, n % Lanes(d)), o2, Set(d, -DBL_MAX));
+
+        size_t lcount1, rcount1, lcount2, rcount2;
+        lcount1 = CompressBlendedStore(x_coor, (omax1 > Zero(d)), d, P.x);
+        CompressBlendedStore(y_coor, (omax1 > Zero(d)), d, P.y);
+        lcount2 = CompressBlendedStore(x_coor2, (o1 > Zero(d)), d,
+                                        P.x + lcount1);
+        CompressBlendedStore(y_coor2, (o1 > Zero(d)), d, P.y + lcount1);
+        rcount1 = CompressBlendedStore(x_coor, (omax2 > Zero(d)), d,
+                                       P.x + lcount1 + lcount2);
+        CompressBlendedStore(y_coor, (omax2 > Zero(d)), d,
+                                       P.y + lcount1 + lcount2);
+        rcount2 = CompressBlendedStore(x_coor2, (o2 > Zero(d)), d,
+                                       P.x + lcount1 + lcount2 + rcount1);
+        CompressBlendedStore(y_coor2, (o2 > Zero(d)), d,
+                                       P.y + lcount1 + lcount2 + rcount1);
+
+        *c1_out = lcount1 + lcount2;
+        *c2_out = rcount1 + rcount2;
+
+        max1x = IfThenElse((o1 > omax1), x_coor2, x_coor);
+        max1y = IfThenElse((o1 > omax1), y_coor2, y_coor);
+        max2x = IfThenElse((o2 > omax2), x_coor2, x_coor);
+        max2y = IfThenElse((o2 > omax2), y_coor2, y_coor);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+
+        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
+                   max1_out, max2_out);
         return;
     }
+
+    omax1 = Set(d, -DBL_MAX);
+    omax2 = Set(d, -DBL_MAX);
 
     /**
      * Invariant
@@ -269,11 +347,11 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     vRx = LoadU(d, P.x + readR);
     vRy = LoadU(d, P.y + readR);
 
-    /* 5 gflops on 4 GHz avx2, 8-9 gflops on 2.6 GHz avx512. 
+    /* 5 gflops on 4 GHz avx2, 8-9 gflops on 2.6 GHz avx512.
      *
-     * Is this reasonable? It seems slow, but then there are a lot of 
+     * Is this reasonable? It seems slow, but then there are a lot of
      * instructions other than the actual orientation computation, so may
-     * be limited by the decode / data movement operations. 
+     * be limited by the decode / data movement operations.
      *
      * Kuzmin being 10% faster is probably because the (cap_left <= cap_right)
      * branch is easier to predict in that case. */
@@ -320,22 +398,8 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
 
     /* TODO: handle vLx, vLy, vRx, vRy */
 
-    /* Horizontal reduction */
-    auto hmax1 = MaxOfLanes(d, omax1);
-    auto hmax2 = MaxOfLanes(d, omax2);
-    auto max1_ind = Iota(d, 0);
-    auto max2_ind = Iota(d, 0);
-    
-    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
-    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
+    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, max1_out, max2_out);
 
-    int i1 = GetLane(SumOfLanes(d, max1_ind));
-    int i2 = GetLane(SumOfLanes(d, max2_ind));
-
-    max1_out->x = ExtractLane(max1x, i1);
-    max1_out->y = ExtractLane(max1y, i1);
-    max2_out->x = ExtractLane(max2x, i2);
-    max2_out->y = ExtractLane(max2y, i2);
 
     *c1_out = writeL;
     *c2_out = n - writeR;
