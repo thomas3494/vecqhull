@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cerrno>
 #include <sys/time.h>
+#include <cfloat>
 #include <hwy/highway.h>
 #include "common.h"
 
@@ -221,6 +222,8 @@ void FindLeftRightV_soa(size_t n, Points P, size_t *left_out, size_t *right_out)
 
     /* Ideally, use LoadN to keep asan happy, but that is from very new
      * hwy version not present in most package managers. */
+    // x_coor = LoadN(d, P.x, min(Lanes(d), n));
+    // y_coor = LoadN(d, P.y, min(Lanes(d), n));
     auto last_mask = (Iota(d, 0) < Set(d, n));
     x_coor = MaskedLoad(last_mask, d, P.x);
     y_coor = MaskedLoad(last_mask, d, P.y);
@@ -284,8 +287,6 @@ void FindLeftRightV_soa(size_t n, Points P, size_t *left_out, size_t *right_out)
         }
     }
     if (i < n) {
-        /* Keeps asan happy, but is not in the hwy from recent package 
-         * managers */
 //        x_coor = LoadN(d, P.x + i, n - i);
         auto last_mask = (Iota(d, 0) < Set(d, n - i));
         x_coor = MaskedLoad(last_mask, d, P.x + i);
@@ -406,6 +407,187 @@ void MinMaxV(size_t n, Point *P, Point p, Point u, Point q,
     max1_out->y = ExtractLane(max1y, i1);
     max2_out->x = ExtractLane(max2x, i2);
     max2_out->y = ExtractLane(max2y, i2);
+}
+
+void MinMaxV_soa(size_t n, Points P, Point p, Point u, Point q, 
+                 Point *max1_out, Point *max2_out)
+{
+    const ScalableTag<double> d;
+
+    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor, 
+                             px, py, ux, uy, qx, qy, omax1, omax2;
+
+    auto last_mask = (Iota(d, 0) < Set(d, n));
+    x_coor = MaskedLoad(last_mask, d, P.x);
+    y_coor = MaskedLoad(last_mask, d, P.y);
+
+    max1x = x_coor;
+    max1y = x_coor;
+    max2x = y_coor;
+    max2y = y_coor;
+    px = Set(d, p.x);
+    py = Set(d, p.y);
+    ux = Set(d, u.x);
+    uy = Set(d, u.y);
+    qx = Set(d, q.x);
+    qy = Set(d, q.y);
+
+    omax1 = orientV(px, py, x_coor, y_coor, ux, uy);
+    omax2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+
+    size_t i = Lanes(d);
+    for (; i + Lanes(d) <= n; i += Lanes(d)) {
+        x_coor = LoadU(d, P.x + i);
+        y_coor = LoadU(d, P.y + i);
+        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+    if (i < n) {
+    }
+
+    /* Horizontal reduction. */
+    auto hmax1 = MaxOfLanes(d, omax1);
+    auto hmax2 = MaxOfLanes(d, omax2);
+    auto max1_ind = Iota(d, 0);
+    auto max2_ind = Iota(d, 0);
+    
+    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
+    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
+
+    int i1 = GetLane(SumOfLanes(d, max1_ind));
+    int i2 = GetLane(SumOfLanes(d, max2_ind));
+
+    max1_out->x = ExtractLane(max1x, i1);
+    max1_out->y = ExtractLane(max1y, i1);
+    max2_out->x = ExtractLane(max2x, i2);
+    max2_out->y = ExtractLane(max2y, i2);
+}
+
+/* Adepted from
+ * https://arxiv.org/pdf/1704.08579
+ * and 
+ * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
+ */
+void TriPartitionV(size_t n, Points P, Point p, Point u, Point q, 
+                   Point *max1_out, Point *max2_out,
+                   size_t *c1_out, size_t *c2_out)
+{
+    const ScalableTag<double> d;
+
+    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor, 
+                             px, py, ux, uy, qx, qy, omax1, omax2,
+                             vLx, vLy, vRx, vRy;
+    Mask<ScalableTag<double>> maskL, maskR;
+
+    if (n < 2 * Lanes(d)) {
+        /* TODO implement scalar base case */
+        return;
+    }
+
+    omax1 = Set(d, -DBL_MAX);
+    omax2 = Set(d, -DBL_MAX);
+
+    px = Set(d, p.x);
+    py = Set(d, p.y);
+    ux = Set(d, u.x);
+    uy = Set(d, u.y);
+    qx = Set(d, q.x);
+    qy = Set(d, q.y);
+
+    /**
+     * Invariant
+     *
+     *
+     *        writeL                                                 writeR
+     *         \/                                                      \/
+     *  |  S1  | undef | bufferL |   unpartitioned   | bufferR | undef | S2 |
+     *                           \/                  \/                     \/
+     *                          readL               readR                   num
+     *
+     **/
+    size_t readL = Lanes(d);
+    size_t readR = n - Lanes(d);
+    size_t writeL = 0;
+    size_t writeR = n;
+
+    vLx = LoadU(d, P.x);
+    vLy = LoadU(d, P.y);
+    vRx = LoadU(d, P.x + readR);
+    vRy = LoadU(d, P.y + readR);
+
+    /* 5 gflops on 4 GHz avx2. 
+     *
+     * Because of inefficient blendstore, or
+     * because of branch misses? We could try unrolling this loop. */
+    while (readL + Lanes(d) <= readR) {
+        size_t cap_left = readL - writeL;
+        size_t cap_right = writeR - readR;
+        if (cap_left <= cap_right) {
+            x_coor = LoadU(d, P.x + readL);
+            y_coor = LoadU(d, P.y + readL);
+            readL += Lanes(d);
+        } else {
+            readR -= Lanes(d);
+            x_coor = LoadU(d, P.x + readR);
+            y_coor = LoadU(d, P.y + readR);
+        }
+
+        /* Finding r1, r2 */
+        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+
+        /* Partition */
+        maskL = (o1 > Zero(d));
+        maskR = And((o2 > Zero(d)), Not(maskL));
+        /* No blended store necessary because we write from left to right */
+        size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
+        CompressStore(y_coor, maskL, d, P.y + writeL);
+        writeL += num_l;
+        size_t num_r = CountTrue(d, maskR);
+        writeR -= num_r;
+        CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
+        CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
+    }
+
+    /* TODO: [readL, readR[ */
+
+    /* TODO: handle vLx, vLy, vRx, vRy */
+
+    /* Horizontal reduction */
+    auto hmax1 = MaxOfLanes(d, omax1);
+    auto hmax2 = MaxOfLanes(d, omax2);
+    auto max1_ind = Iota(d, 0);
+    auto max2_ind = Iota(d, 0);
+    
+    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
+    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
+
+    int i1 = GetLane(SumOfLanes(d, max1_ind));
+    int i2 = GetLane(SumOfLanes(d, max2_ind));
+
+    max1_out->x = ExtractLane(max1x, i1);
+    max1_out->y = ExtractLane(max1y, i1);
+    max2_out->x = ExtractLane(max2x, i2);
+    max2_out->y = ExtractLane(max2y, i2);
+
+    *c1_out = writeL;
+    *c2_out = n - writeR;
+
+    /* Condense */
+    memmove(P.x + writeL, P.x + writeR, n - writeR);
+    memmove(P.y + writeL, P.y + writeR, n - writeR);
 }
 
 double wtime(void)

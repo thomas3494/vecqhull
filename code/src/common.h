@@ -79,6 +79,13 @@ void FindLeftRightV_soa(size_t n, Points P,
 void MinMaxV(size_t n, Point *P, Point p, Point u, Point q,
              Point *min_out, Point *max_out);
 
+void MinMaxV_soa(size_t n, Points P, Point p, Point u, Point q,
+                 Point *min_out, Point *max_out);
+
+void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
+                   Point *argmax1_out, Point *argmax2_out,
+                   size_t *c1_out, size_t *c2_out);
+
 /* Wallclock time in seconds */
 double wtime(void);
 
