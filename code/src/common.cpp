@@ -521,10 +521,11 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     vRx = LoadU(d, P.x + readR);
     vRy = LoadU(d, P.y + readR);
 
-    /* 5 gflops on 4 GHz avx2. 
+    /* 5 gflops on 4 GHz avx2, 8 gflops on 2.6 GHz avx512. 
      *
-     * Because of inefficient blendstore, or
-     * because of branch misses? We could try unrolling this loop. */
+     * Is this reasonable? It seems slow, but then there are a lot of 
+     * instructions other than the actual orientation computation, so may
+     * be limited by the decode / data movement operations. */
     while (readL + Lanes(d) <= readR) {
         size_t cap_left = readL - writeL;
         size_t cap_right = writeR - readR;
@@ -541,12 +542,15 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
         /* Finding r1, r2 */
         auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
         auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
-        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
+        /* The if statement is optional, but seems to be a bit faster. */
+        if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
+            max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+            max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+            max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+            max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+            omax1 = Max(o1, omax1);
+            omax2 = Max(o2, omax2);
+        }
 
         /* Partition */
         maskL = (o1 > Zero(d));
