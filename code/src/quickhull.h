@@ -18,6 +18,6 @@
  * The P version is parallelised with OpenMP.
  **/
 EXTERNC size_t Quickhull(size_t n, Points P);
-EXTERNC size_t QuickhullP(size_t n, Points P);
+//EXTERNC size_t QuickhullP(size_t n, Points P);
 
 #endif /* _QUICKHULL_GUARD_JLSDFKJSDJFDFJLKSDFJ */

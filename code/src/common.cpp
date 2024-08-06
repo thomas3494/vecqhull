@@ -248,7 +248,7 @@ static void qhull_hmax(Vecd omax1, Vecd omax2,
 }
 
 static inline void TriLoopBody(Vecd px, Vecd py,
-                               Vecd ux, Vecd uy,
+                               Vecd rx, Vecd ry,
                                Vecd qx, Vecd qy,
                                Vecd &omax1, Vecd &omax2,
                                Vecd &max1x, Vecd &max1y,
@@ -258,8 +258,8 @@ static inline void TriLoopBody(Vecd px, Vecd py,
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
-    auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
-    auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
+    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
     /* The if statement is optional, but seems to be a bit (5%) faster. */
     if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
         max1x = IfThenElse(o1 > omax1, x_coor, max1x);
@@ -288,29 +288,29 @@ static inline void TriLoopBody(Vecd px, Vecd py,
  * and
  * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
  */
-void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
+void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
                    Point *max1_out, Point *max2_out,
                    size_t *c1_out, size_t *c2_out)
 {
     const ScalableTag<double> d;
 
     Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor,
-                             px, py, ux, uy, qx, qy, omax1, omax2,
+                             px, py, rx, ry, qx, qy, omax1, omax2,
                              vLx, vLy, vRx, vRy;
     Mask<ScalableTag<double>> maskL, maskR;
 
     px = Set(d, p.x);
     py = Set(d, p.y);
-    ux = Set(d, u.x);
-    uy = Set(d, u.y);
+    rx = Set(d, r.x);
+    ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
 
     if (HWY_UNLIKELY((n < Lanes(d)))) {
         x_coor = LoadN(d, P.x, n);
         y_coor = LoadN(d, P.y, n);
-        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
-        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
+        auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
         o1 = IfThenElse(FirstN(d, n), o1, Set(d, -DBL_MAX));
         o2 = IfThenElse(FirstN(d, n), o2, Set(d, -DBL_MAX));
 
@@ -324,13 +324,13 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     } else if (HWY_UNLIKELY(n < 2 * Lanes(d))) {
         x_coor = LoadU(d, P.x);
         y_coor = LoadU(d, P.y);
-        omax1 = orientV(px, py, x_coor, y_coor, ux, uy);
-        omax2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+        omax1 = orientV(px, py, x_coor, y_coor, rx, ry);
+        omax2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
 
         auto x_coor2 = LoadN(d, P.x + Lanes(d), n % Lanes(d));
         auto y_coor2 = LoadN(d, P.y + Lanes(d), n % Lanes(d));
-        auto o1 = orientV(px, py, x_coor2, y_coor2, ux, uy);
-        auto o2 = orientV(ux, uy, x_coor2, y_coor2, qx, qy);
+        auto o1 = orientV(px, py, x_coor2, y_coor2, rx, ry);
+        auto o2 = orientV(rx, ry, x_coor2, y_coor2, qx, qy);
         o1 = IfThenElse(FirstN(d, n % Lanes(d)), o1, Set(d, -DBL_MAX));
         o2 = IfThenElse(FirstN(d, n % Lanes(d)), o2, Set(d, -DBL_MAX));
 
@@ -419,7 +419,7 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
             y_coor = LoadU(d, P.y + readR);
         }
 
-        TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+        TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
                     max1x, max1y, max2x, max2y,
                     P, writeL, writeR, x_coor, y_coor);
    }
@@ -427,8 +427,8 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     /* [readL, readR[ */
     x_coor = LoadN(d, P.x + readL, readR - readL);
     y_coor = LoadN(d, P.y + readL, readR - readL);
-    auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
-    auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
+    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
     o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
     o2 = IfThenElse(FirstN(d, readR - readL), o2, Set(d, -DBL_MAX));
     max1x = IfThenElse(o1 > omax1, x_coor, max1x);
@@ -447,10 +447,10 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
     
-    TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+    TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vLx, vLy);
-    TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+    TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vRx, vRy);
 
@@ -460,8 +460,8 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     *c2_out = n - writeR;
 
     /* Condense */
-    memmove(P.x + writeL, P.x + writeR, n - writeR);
-    memmove(P.y + writeL, P.y + writeR, n - writeR);
+    memmove(P.x + writeL, P.x + writeR, (n - writeR) * sizeof(double));
+    memmove(P.y + writeL, P.y + writeR, (n - writeR) * sizeof(double));
 }
 
 double wtime(void)

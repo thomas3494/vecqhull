@@ -44,31 +44,29 @@ size_t Quickhull(size_t n, Points P)
     return 2 + lcount + rcount;
 }
 
-size_t FindHull(size_t n, Points P, Point p, Point rk, Point q)
+size_t FindHull(size_t n, Points P, Point p, Point r, Point q)
 {
     if (n <= 1) return n;
 
-    Point t1, t2;
+    Point r1, r2;
     size_t total1, total2;
-    TriPartitionV(n, P, p, rk, q, &t1, &t2, &total1, &total2);
+    TriPartitionV(n, P, p, r, q, &r1, &r2, &total1, &total2);
 
     Points S1 = P;
-    size_t lcount = FindHull(total1, S1, p, t1, rk);
+    size_t lcount = FindHull(total1, S1, p, r1, r);
 
     Points S2 = {P.x + total1, P.y + total1};
-    size_t rcount = FindHull(total2, S2, rk, t2, q);
+    size_t rcount = FindHull(total2, S2, r, r2, q);
 
     /* Condense left and right hull into contiguous memory */
     memmove(S1.x + lcount + 1, S2.x, rcount * sizeof(double));
     memmove(S1.y + lcount + 1, S2.y, rcount * sizeof(double));
-    P.x[lcount] = rk.x;
-    P.y[lcount] = rk.y;
+    P.x[lcount] = r.x;
+    P.y[lcount] = r.y;
 
     return 1 + lcount + rcount;
 }
 
-size_t QuickhullP(size_t n, Points P)
-{
-    (void)P;
-    return n;
-}
+//size_t QuickhullP(size_t n, Points P)
+//{
+//}
