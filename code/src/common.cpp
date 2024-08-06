@@ -11,6 +11,9 @@
 
 using namespace hwy::HWY_NAMESPACE;
 
+typedef Vec<ScalableTag<double>> Vecd;
+typedef Vec<ScalableTag<size_t>> Veci;
+
 void PrintPoints(size_t n, Points P)
 {
     printf("pbbs_sequencePoint2d\n");
@@ -115,12 +118,12 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     const ScalableTag<double> d;
     const ScalableTag<size_t> di;
 
-    Vec<ScalableTag<double>> leftx, lefty, rightx, righty, x_coor, y_coor;
+    Vecd leftx, lefty, rightx, righty, x_coor, y_coor;
     /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4)
      * vtestpd has a throughput of 1, wheareas min, max, blend, vcmppd have a
      * throughput of 0.5 or less. For this reason we unroll the loop. */
-    Vec<ScalableTag<double>> x_coor2, y_coor2;
-    Vec<ScalableTag<size_t>> l_i, r_i;
+    Vecd x_coor2, y_coor2;
+    Veci l_i, r_i;
     Mask<ScalableTag<double>> mask1, mask2;
     l_i = Iota(di, 0);
     r_i = Iota(di, 0);
@@ -216,12 +219,9 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = ExtractLane(r_i, right_ind);
 }
 
-static void qhull_hmax(Vec<ScalableTag<double>> omax1,
-                       Vec<ScalableTag<double>> omax2,
-                       Vec<ScalableTag<double>> max1x,
-                       Vec<ScalableTag<double>> max1y,
-                       Vec<ScalableTag<double>> max2x,
-                       Vec<ScalableTag<double>> max2y,
+static void qhull_hmax(Vecd omax1, Vecd omax2,
+                       Vecd max1x, Vecd max1y,
+                       Vecd max2x, Vecd max2y,
                        Point *max1_out, Point *max2_out)
 {
     const ScalableTag<double> d;
@@ -242,6 +242,42 @@ static void qhull_hmax(Vec<ScalableTag<double>> omax1,
     max2_out->y = ExtractLane(max2y, i2);
 }
 
+static inline void TriLoopBody(Vecd px, Vecd py,
+                               Vecd ux, Vecd uy,
+                               Vecd qx, Vecd qy,
+                               Vecd &omax1, Vecd &omax2,
+                               Vecd &max1x, Vecd &max1y,
+                               Vecd &max2x, Vecd &max2y,
+                               Points P, size_t &writeL, size_t &writeR,
+                               Vecd x_coor, Vecd y_coor)
+{
+    const ScalableTag<double> d;
+    /* Finding r1, r2 */
+    auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+    auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+    /* The if statement is optional, but seems to be a bit (5%) faster. */
+    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+    
+    /* Partition */
+    auto maskL = (o1 > Zero(d));
+    auto maskR = And((o2 > Zero(d)), Not(maskL));
+    /* No blended store necessary because we write from left to right */
+    size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
+    CompressStore(y_coor, maskL, d, P.y + writeL);
+    writeL += num_l;
+    size_t num_r = CountTrue(d, maskR);
+    writeR -= num_r;
+    CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
+    CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
+}
+ 
 /* Adepted from
  * https://arxiv.org/pdf/1704.08579
  * and
@@ -347,14 +383,24 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
     vRx = LoadU(d, P.x + readR);
     vRy = LoadU(d, P.y + readR);
 
-    /* 5 gflops on 4 GHz avx2, 8-9 gflops on 2.6 GHz avx512.
+    /**
+     * 5 gflops on 4 GHz avx2, 8-9 gflops on 2.6 - 4.8 GHz avx512.
      *
      * Is this reasonable? It seems slow, but then there are a lot of
      * instructions other than the actual orientation computation, so may
      * be limited by the decode / data movement operations.
      *
-     * Kuzmin being 10% faster is probably because the (cap_left <= cap_right)
-     * branch is easier to predict in that case. */
+     * Kuzmin being 10% faster than Cirlce, Disk is because the
+     * (cap_left <= cap_right) branch is easier to predict. Doing it branchless
+     * is not worth it on either zen2 or Skylake. 
+     *
+     * On zen2 (avx2), we get about 2.1 instructions per cycle. 
+     * Most instructions have a throughput of 2. Compute and data movement
+     * instructions are typically executed on different ports, so we expect
+     * between 2 and 4 depending on the ratio of these instructions. Since
+     * we are pretty far off 4, we may want to look at breaking dependency 
+     * chains.
+     **/
     while (readL + Lanes(d) <= readR) {
         size_t cap_left = readL - writeL;
         size_t cap_right = writeR - readR;
@@ -368,38 +414,42 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
             y_coor = LoadU(d, P.y + readR);
         }
 
-        /* Finding r1, r2 */
-        auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
-        auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
-        /* The if statement is optional, but seems to be a bit (5%) faster. */
-        if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
-            max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-            max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-            max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-            max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-            omax1 = Max(o1, omax1);
-            omax2 = Max(o2, omax2);
-        }
+        TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+                    max1x, max1y, max2x, max2y,
+                    P, writeL, writeR, x_coor, y_coor);
+   }
 
-        /* Partition */
-        maskL = (o1 > Zero(d));
-        maskR = And((o2 > Zero(d)), Not(maskL));
-        /* No blended store necessary because we write from left to right */
-        size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
-        CompressStore(y_coor, maskL, d, P.y + writeL);
-        writeL += num_l;
-        size_t num_r = CountTrue(d, maskR);
-        writeR -= num_r;
-        CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
-        CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
-    }
-
-    /* TODO: [readL, readR[ */
-
-    /* TODO: handle vLx, vLy, vRx, vRy */
+    /* [readL, readR[ */
+    x_coor = LoadN(d, P.x + readL, readR - readL);
+    y_coor = LoadN(d, P.y + readL, readR - readL);
+    auto o1 = orientV(px, py, x_coor, y_coor, ux, uy);
+    auto o2 = orientV(ux, uy, x_coor, y_coor, qx, qy);
+    o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
+    o2 = IfThenElse(FirstN(d, readR - readL), o2, Set(d, -DBL_MAX));
+    max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+    max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+    max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+    max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+    omax1 = Max(o1, omax1);
+    omax2 = Max(o2, omax2);
+    maskL = (o1 > Zero(d));
+    maskR = And((o2 > Zero(d)), Not(maskL));
+    size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
+    CompressStore(y_coor, maskL, d, P.y + writeL);
+    writeL += num_l;
+    size_t num_r = CountTrue(d, maskR);
+    writeR -= num_r;
+    CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
+    CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
+    
+    TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+                max1x, max1y, max2x, max2y,
+                P, writeL, writeR, vLx, vLy);
+    TriLoopBody(px, py, ux, uy, qx, qy, omax1, omax2,
+                max1x, max1y, max2x, max2y,
+                P, writeL, writeR, vRx, vRy);
 
     qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, max1_out, max2_out);
-
 
     *c1_out = writeL;
     *c2_out = n - writeR;
