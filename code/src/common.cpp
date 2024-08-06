@@ -225,16 +225,21 @@ static void qhull_hmax(Vecd omax1, Vecd omax2,
                        Point *max1_out, Point *max2_out)
 {
     const ScalableTag<double> d;
-    auto hmax1 = MaxOfLanes(d, omax1);
-    auto hmax2 = MaxOfLanes(d, omax2);
-    auto max1_ind = Iota(d, 0);
-    auto max2_ind = Iota(d, 0);
 
-    max1_ind = IfThenElseZero(omax1 == hmax1, max1_ind);
-    max2_ind = IfThenElseZero(omax2 == hmax2, max2_ind);
-
-    int i1 = GetLane(SumOfLanes(d, max1_ind));
-    int i2 = GetLane(SumOfLanes(d, max2_ind));
+    double omax1_arr[Lanes(d)];
+    double omax2_arr[Lanes(d)];
+    size_t i1 = 0;
+    size_t i2 = 0;
+    StoreU(omax1, d, omax1_arr);
+    StoreU(omax2, d, omax2_arr);
+    for (size_t i = 1; i < Lanes(d); i++) {
+        if (omax1_arr[i] > omax1_arr[i1]) {
+            i1 = i;
+        }
+        if (omax2_arr[i] > omax2_arr[i2]) {
+            i2 = i;
+        }
+    }
 
     max1_out->x = ExtractLane(max1x, i1);
     max1_out->y = ExtractLane(max1y, i1);
