@@ -5,5 +5,5 @@ CC = clang
 # orient(p, q, p) to exact zero!
 FLAGS = -O3 -march=native -mtune=native -Wall -Wextra -fopenmp
 DBUG_FLAGS = -fsanitize=address -fsanitize=undefined -ggdb
-FLAGS += $(DBUG_FLAGS)
+#FLAGS += $(DBUG_FLAGS)
 LFLAGS = -lm -fopenmp -lhwy
