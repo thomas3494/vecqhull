@@ -29,7 +29,7 @@ make
 check()
 {
     name="$1"
-    ./code/bin/test_quickhull p b < data/"$name".bin > data/"$name".quickhull.out
+    ./code/bin/test_quickhull p < data/"$name".in > data/"$name".quickhull.out
     ./pbbsbench/benchmarks/convexHull/serialHull/hull  \
                 -o data/"$name".pbbs_serial_indices.out \
                 data/"$name".in

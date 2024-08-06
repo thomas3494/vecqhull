@@ -7,7 +7,6 @@
 /* Forward declaration */
 size_t FindHull(size_t n, Points P, Point p, Point q, Point rk);
 
-
 size_t Quickhull(size_t n, Points P)
 {
     /* Find the points with left-most and right-most x-coordinate.
@@ -15,11 +14,17 @@ size_t Quickhull(size_t n, Points P)
      * These are guaranteed to be on the convex hull, and will be our
      * first bisection. */
     size_t left, right;
-    Point p, q;
     FindLeftRightV(n, P, &left, &right);
+    Point p = {P.x[left], P.y[left]};
+    Point q = {P.x[right], P.y[right]};
 
-    swap(P, 0, left);
-    swap(P, n - 1, right);
+    if (right != 0) {
+        swap(P, 0, left);
+        swap(P, n - 1, right);
+    } else {
+        swap(P, n - 1, right);
+        swap(P, 0, left);
+    }
 
     Point r1, r2;
     size_t total1, total2;
@@ -30,10 +35,11 @@ size_t Quickhull(size_t n, Points P)
     size_t lcount = FindHull(total1, S1, p, r1, q);
     size_t rcount = FindHull(total2, S2, q, r2, p);
 
-    /* Condense left hull, right hull, q into contiguous memory */
-    memmove(S1.x + lcount, S2.x, rcount * sizeof(double));
-    memmove(S1.y + lcount, S2.y, rcount * sizeof(double));
-    swap(P, 1 + lcount + rcount + 1, n - 1);
+    /* Put <p> <left hull> <q> <right hull> together */
+    memmove(S1.x + lcount + 1, S2.x, rcount * sizeof(double));
+    memmove(S1.y + lcount + 1, S2.y, rcount * sizeof(double));
+    P.x[lcount + 1] = q.x;
+    P.y[lcount + 1] = q.y;
 
     return 2 + lcount + rcount;
 }
@@ -63,5 +69,6 @@ size_t FindHull(size_t n, Points P, Point p, Point rk, Point q)
 
 size_t QuickhullP(size_t n, Points P)
 {
+    (void)P;
     return n;
 }
