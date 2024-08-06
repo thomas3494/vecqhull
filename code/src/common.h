@@ -4,20 +4,9 @@
 #include <cstddef>
 #include <hwy/highway.h>
 
+#include "typedefs.h"
+
 using namespace hwy::HWY_NAMESPACE;
-
-/* TODO make sure we can use this library from C code (and everything having
- * a C FFI). */
-
-typedef struct {
-    double x;
-    double y;
-} Point;
-
-typedef struct {
-    double *x;
-    double *y;
-} Points;
 
 /* pbbs 2d sequence format */
 void PrintPoints(size_t n, Points P);
@@ -41,6 +30,16 @@ inline size_t max(size_t a, size_t b)
 inline size_t min(size_t a, size_t b)
 {
     return (a < b) ? a : b;
+}
+
+inline void swap(Points P, size_t i, size_t j)
+{
+    double tempx = P.x[i];
+    double tempy = P.y[i];
+    P.x[i] = P.x[j];
+    P.y[i] = P.y[j];
+    P.x[j] = tempx;
+    P.y[j] = tempy;
 }
 
 /* If this is negative, then p, q, u is a right-turn.

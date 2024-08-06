@@ -1,4 +1,5 @@
 CXX = clang++
+CC = clang
 
 # Do not use -Ofast / -ffast-math as this may break the evaluation of 
 # orient(p, q, p) to exact zero!

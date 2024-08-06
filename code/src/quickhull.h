@@ -2,11 +2,13 @@
 #define _QUICKHULL_GUARD_JLSDFKJSDJFDFJLKSDFJ
 
 #include <stddef.h>
+#include "typedefs.h"
 
-typedef struct {
-    double *x;
-    double *y;
-} Points;
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC
+#endif
 
 /**
  * Computes the convex hull of P in-place. Returns the number of elements in
@@ -15,7 +17,7 @@ typedef struct {
  *
  * The P version is parallelised with OpenMP.
  **/
-size_t Quickhull(size_t n, Points P);
-size_t QuickhullP(size_t n, Points P);
+EXTERNC size_t Quickhull(size_t n, Points P);
+EXTERNC size_t QuickhullP(size_t n, Points P);
 
 #endif /* _QUICKHULL_GUARD_JLSDFKJSDJFDFJLKSDFJ */
