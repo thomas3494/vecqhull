@@ -2,7 +2,6 @@
 
 #SBATCH --account=csmpi
 #SBATCH --partition=csmpi_long
-#SBATCH --nodelist=cn125
 #SBATCH --mem=0
 #SBATCH --cpus-per-task=16
 #SBATCH --time=1:00:00
