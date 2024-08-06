@@ -6,8 +6,9 @@
 #include "common.h"
 
 /* Forward declarations */
-size_t FindHull(size_t n, Points P, Point p, Point q, Point rk);
-size_t FindHullP(size_t n, Point *P, Point p, Point q, Point rk, int nprocs);
+size_t FindHull(size_t n, Points P, Point p, Point r, Point q);
+size_t FindHullP(size_t n, Point *P, Point p, Point r, Point q, 
+                 unsigned int nthreads);
 
 size_t Quickhull(size_t n, Points P)
 {
@@ -135,3 +136,60 @@ size_t QuickhullP(size_t n, Points P)
 
     return 2 + lcount + rcount;
 }
+
+size_t FindHullP(size_t n, Points P, Point p, Point r, Point q, 
+                 unsigned int nthreads)
+{
+    if (n <= 1) return n;
+
+    Point r1, r2;
+    size_t total1, total2;
+    TriPartitionV(n, P, p, r, q, &r1, &r2, &total1, &total2);
+
+    Points S1 = P;
+    Points S2 = {P.x + total1, P.y + total1};
+
+    unsigned int threads1 = (total1 + total2 == 0) ? 
+                        0 : 
+                        roundf((double)total1 / (total1 + total2) * nthreads);
+    unsigned int threads2 = nthreads - threads1;
+
+    size_t lcount, rcount;
+    if (threads1 == 0 || threads2 == 0) {
+        lcount = FindHull(total1, S1, p, r1, r);
+        rcount = FindHull(total2, S2, r, r2, q);
+    } else {
+        #pragma omp parallel shared(threads1, threads2) num_threads(2)
+        {
+            #pragma omp single nowait
+            {
+                #pragma omp task
+                {
+                    lcount = (threads1 > 1) ?
+                                 FindHullP(total1, S1, p, r1, r, threads1) :
+                                 FindHull(total1, S1, p, r1, r);
+                }
+            }
+    
+            #pragma omp single nowait
+            {
+                #pragma omp task
+                    rcount = (threads2 > 1) ?
+                            FindHullP(total2, S2, r, r2, q, threads2) :
+                            FindHull(total2, S2, r, r2, q);
+            }
+        }
+    }
+
+    /* Condense left and right hull into contiguous memory */
+    memmove(S1.x + lcount + 1, S2.x, rcount * sizeof(double));
+    memmove(S1.y + lcount + 1, S2.y, rcount * sizeof(double));
+    P.x[lcount] = r.x;
+    P.y[lcount] = r.y;
+
+    return 1 + lcount + rcount;
+}
+
+
+
+
