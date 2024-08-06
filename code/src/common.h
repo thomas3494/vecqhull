@@ -67,6 +67,9 @@ void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out);
 /* Vectorized */
 void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out);
 
+/* Vectorized and parallelised with OpenMP */
+void FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out);
+
 void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
                    Point *argmax1_out, Point *argmax2_out,
                    size_t *c1_out, size_t *c2_out);

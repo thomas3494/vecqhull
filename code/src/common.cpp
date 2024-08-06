@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include <cerrno>
+#include <omp.h>
 #include <sys/time.h>
 #include <cfloat>
 #include <hwy/highway.h>
@@ -217,6 +218,54 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
 
     *left_out  = ExtractLane(l_i, left_ind);
     *right_out = ExtractLane(r_i, right_ind);
+}
+
+void FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
+{
+    unsigned int nthreads;
+    size_t block;
+    #pragma omp parallel master
+    {
+        nthreads = omp_get_num_threads();
+        block = ceildiv(n, nthreads);
+    }
+
+    size_t lefts[nthreads];
+    size_t rights[nthreads];
+
+    #pragma omp parallel
+    {
+        unsigned int me = omp_get_thread_num();
+        size_t start = me * block;
+        size_t end = min((me + 1) * block, n);
+        if (start < end) {
+            Points Q = {P.x + start, P.y + start};
+            FindLeftRightV(end - start, Q, lefts + me, rights + me);
+            lefts[me] += start;
+            rights[me] += start;
+        }
+    }
+
+
+    size_t left = 0;
+    size_t right = 0;
+    for (unsigned int i = 1; i < min(n, nthreads); i++) {
+        if ((P.x[lefts[i]] < P.x[lefts[left]]) || 
+                ((P.x[lefts[i]] == P.x[lefts[left]]) && 
+                    (P.y[lefts[i]] < P.y[lefts[left]])))
+        {
+            left = i;
+        }
+        if ((P.x[rights[i]] > P.x[rights[right]]) || 
+                ((P.x[rights[i]] == P.x[rights[right]]) && 
+                    (P.y[rights[i]] > P.y[rights[right]])))
+        {
+            right = i;
+        }
+    }
+
+    *left_out = lefts[left];
+    *right_out = rights[right];
 }
 
 static void qhull_hmax(Vecd omax1, Vecd omax2,
