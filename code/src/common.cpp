@@ -250,14 +250,14 @@ void FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
     size_t left = 0;
     size_t right = 0;
     for (unsigned int i = 1; i < min(n, nthreads); i++) {
-        if ((P.x[lefts[i]] < P.x[lefts[left]]) || 
-                ((P.x[lefts[i]] == P.x[lefts[left]]) && 
+        if ((P.x[lefts[i]] < P.x[lefts[left]]) ||
+                ((P.x[lefts[i]] == P.x[lefts[left]]) &&
                     (P.y[lefts[i]] < P.y[lefts[left]])))
         {
             left = i;
         }
-        if ((P.x[rights[i]] > P.x[rights[right]]) || 
-                ((P.x[rights[i]] == P.x[rights[right]]) && 
+        if ((P.x[rights[i]] > P.x[rights[right]]) ||
+                ((P.x[rights[i]] == P.x[rights[right]]) &&
                     (P.y[rights[i]] > P.y[rights[right]])))
         {
             right = i;
@@ -318,7 +318,7 @@ static inline void TriLoopBody(Vecd px, Vecd py,
         omax1 = Max(o1, omax1);
         omax2 = Max(o2, omax2);
     }
-    
+
     /* Partition */
     auto maskL = (o1 > Zero(d));
     auto maskR = And((o2 > Zero(d)), Not(maskL));
@@ -331,7 +331,7 @@ static inline void TriLoopBody(Vecd px, Vecd py,
     CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
 }
- 
+
 /* Adepted from
  * https://arxiv.org/pdf/1704.08579
  * and
@@ -343,9 +343,9 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
 {
     const ScalableTag<double> d;
 
-    Vec<ScalableTag<double>> max1x, max1y, max2x, max2y, x_coor, y_coor,
-                             px, py, rx, ry, qx, qy, omax1, omax2,
-                             vLx, vLy, vRx, vRy;
+    Vecd max1x, max1y, max2x, max2y, x_coor, y_coor,
+         px, py, rx, ry, qx, qy, omax1, omax2,
+         vLx, vLy, vRx, vRy;
     Mask<ScalableTag<double>> maskL, maskR;
 
     px = Set(d, p.x);
@@ -442,18 +442,12 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
      *
      * Is this reasonable? It seems slow, but then there are a lot of
      * instructions other than the actual orientation computation, so may
-     * be limited by the decode / data movement operations.
+     * be limited by data movement operations. There are also
+     * register spills on avx2.
      *
-     * Kuzmin being 10% faster than Cirlce, Disk is because the
+     * Kuzmin being 10% faster than Circle, Disk is because the
      * (cap_left <= cap_right) branch is easier to predict. Doing it branchless
-     * is not worth it on either zen2 or Skylake. 
-     *
-     * On zen2 (avx2), we get about 2.1 instructions per cycle. 
-     * Most instructions have a throughput of 2. Compute and data movement
-     * instructions are typically executed on different ports, so we expect
-     * between 2 and 4 depending on the ratio of these instructions. Since
-     * we are pretty far off 4, we may want to look at breaking dependency 
-     * chains.
+     * is not worth it on either zen2 or Skylake.
      **/
     while (readL + Lanes(d) <= readR) {
         size_t cap_left = readL - writeL;
@@ -495,7 +489,7 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     writeR -= num_r;
     CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
-    
+
     TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vLx, vLy);
@@ -508,10 +502,71 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     *c1_out = writeL;
     *c2_out = n - writeR;
 
-    /* Condense */
-    memmove(P.x + writeL, P.x + writeR, (n - writeR) * sizeof(double));
-    memmove(P.y + writeL, P.y + writeR, (n - writeR) * sizeof(double));
+    /**
+     * Condense
+     *
+     * | S1 |    undef     | S2 |
+     *     /\              /\
+     *     writeL         writeR
+     *
+     * to
+     *
+     * | S1 | S2 | undef |
+     **/
+    size_t num_elems = min(writeR - writeL, n - writeR);
+    memmove(P.x + writeL, P.x + n - num_elems, num_elems * sizeof(double));
+    memmove(P.y + writeL, P.y + n - num_elems, num_elems * sizeof(double));
 }
+
+/**
+ * Operates on block cyclic subarray of P described by block, nthreads, n.
+ * See paper for a picture.
+ * Reads / writes in Lanes(d) elements starting at i = k + j, where j < block.
+ * Updates k, j such that the new i points to one past the last element
+ * read / written.
+ **/
+static inline
+size_t Blockcyc_Read(size_t &k, size_t &j, Vecd &x_coor, Vecd &y_coor,
+                     Points P, size_t block, unsigned int nthreads)
+{
+    const ScalableTag<double> d;
+
+    if (j + Lanes(d) < block) {
+        x_coor = LoadU(d, P.x + k + j);
+        y_coor = LoadU(d, P.y + k + j);
+        j += Lanes(d);
+    } else if (j + Lanes(d) == block) {
+        x_coor = LoadU(d, P.x + k + j);
+        y_coor = LoadU(d, P.y + k + j);
+        j = 0;
+        k += nthreads * block;
+    } else {
+        size_t countL = block - j;
+        size_t countR = Lanes(d) - countL;
+        x_coor = LoadN(d, P.x + k + j, countL);
+        y_coor = LoadN(d, P.y + k + j, countL);
+        k += nthreads * block;
+        auto temp_x = LoadN(d, P.x + k, countR);
+        auto temp_y = LoadN(d, P.y + k, countR);
+        auto mask = FirstN(d, countL);
+        x_coor = IfThenElse(mask, x_coor, temp_x);
+        y_coor = IfThenElse(mask, y_coor, temp_y);
+        j = countR;
+    }
+}
+
+/**
+ * P is an array on n points. We do a block cyclic distribution determined
+ * by nthreads and block. So we have indices start, ..., start + block - 1,
+ * start + nthreads * block, ..., start + nthreads + block + block - 1, ...
+ *
+ * We assume we have at least 2 * Lanes(d).points.
+ **/
+//void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
+//                            Point *argmax1_out, Point *argmax2_out,
+//                            size_t *total1_out, size_t *total2_out,
+//                            size_t start, const size_t block,
+//                            unsigned int nthreads)
 
 double wtime(void)
 {
