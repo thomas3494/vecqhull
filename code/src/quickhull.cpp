@@ -7,7 +7,7 @@
 
 /* Forward declarations */
 size_t FindHull(size_t n, Points P, Point p, Point r, Point q);
-size_t FindHullP(size_t n, Point *P, Point p, Point r, Point q, 
+size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
                  unsigned int nthreads);
 
 size_t Quickhull(size_t n, Points P)
@@ -103,7 +103,7 @@ size_t QuickhullP(size_t n, Points P)
     TriPartitionV(n - 2, S1, p, q, p, &r1, &r2, &total1, &total2);
     Points S2 = {S1.x + total1, S1.y + total1};
 
-    unsigned int threads1 = roundf((double)total1 / 
+    unsigned int threads1 = roundf((double)total1 /
                                         (total1 + total2) * nthreads);
     unsigned int threads2 = nthreads - threads1;
 
@@ -117,13 +117,13 @@ size_t QuickhullP(size_t n, Points P)
             #pragma omp single nowait
             {
                 #pragma omp task
-                lcount = FindHull(total1, S1, p, r1, q);
+                lcount = FindHullP(total1, S1, p, r1, q, threads1);
             }
-    
+
             #pragma omp single nowait
             {
                 #pragma omp task
-                rcount = FindHull(total2, S2, q, r2, p);
+                rcount = FindHullP(total2, S2, q, r2, p, threads2);
             }
         }
     }
@@ -137,7 +137,7 @@ size_t QuickhullP(size_t n, Points P)
     return 2 + lcount + rcount;
 }
 
-size_t FindHullP(size_t n, Points P, Point p, Point r, Point q, 
+size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
                  unsigned int nthreads)
 {
     if (n <= 1) return n;
@@ -149,8 +149,8 @@ size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
     Points S1 = P;
     Points S2 = {P.x + total1, P.y + total1};
 
-    unsigned int threads1 = (total1 + total2 == 0) ? 
-                        0 : 
+    unsigned int threads1 = (total1 + total2 == 0) ?
+                        0 :
                         roundf((double)total1 / (total1 + total2) * nthreads);
     unsigned int threads2 = nthreads - threads1;
 
@@ -170,7 +170,7 @@ size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
                                  FindHull(total1, S1, p, r1, r);
                 }
             }
-    
+
             #pragma omp single nowait
             {
                 #pragma omp task
