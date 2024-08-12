@@ -575,11 +575,9 @@ void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
 {
     if (j >= count) {
         j -= count;
-        assert(j < block);
     } else {
         k -= nthreads * block;
         j = block + j - count;
-        assert(j < block);
     }
 }
 
@@ -590,11 +588,9 @@ void Blockcyc_Add(size_t &k, size_t &j, size_t count,
 {
     if (j + count < block) {
         j += count;
-        assert(j < block);
     } else {
         k += nthreads * block;
         j = j + count - block;
-        assert(j < block);
     }
 }
 
@@ -647,7 +643,6 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
 
     auto maskR = And((o2 > Zero(d)), Not(maskL));
     size_t num_r = CountTrue(d, maskR);
-    assert(num_r + num_l <= Lanes(d));
     Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
     auto tempxR = Compress(x_coor, maskR);
     auto tempyR = Compress(y_coor, maskR);
@@ -664,6 +659,7 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
  **/
 void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                             Point *max1_out, Point *max2_out,
+                            size_t *low_out, size_t *high_out,
                             size_t *total1_out, size_t *total2_out,
                             size_t start, const size_t block,
                             unsigned int nthreads)
@@ -682,17 +678,20 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     qy = Set(d, q.y);
 
     size_t writeLk = start;
-    assert(start % (block) == 0);
     size_t writeLj = 0;
 
-    /* The last element in our partition is the largest integer
-     * start + l * nthreads * block + j smaller than n, such that
-     * j < block.
-     * Equivalently l * nthreads * block + j < n - start. As
-     * j < nthreads * block, l * nthreads * block can be obtained by rounding
-     * down. */
-    size_t writeRk = start + roundDown(n - start, block * nthreads);
-    size_t writeRj = (writeRk + block > n) ? n % block : 0;
+    /* writeR is one past the last element we own. 
+     * The start of each block is of the form start + a * nthreads * block.
+     * We want maximal a such that start + a * nthreads * block < n
+     * or the maximal a such that
+     *  a * nthreads * block <= n - 1 - start. 
+     * We can obtain this by rounding down. */
+    size_t writeRk = start + roundDown((n - 1 - start) , (block * nthreads));
+    size_t writeRj = 0;
+    Blockcyc_Add(writeRk, writeRj, min(block, n - writeRk), block, nthreads);
+
+    size_t last_pointk = writeRk;
+    size_t last_pointj = writeRj;
 
     size_t readLk = writeLk;
     size_t readLj = writeLj;
@@ -732,6 +731,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     /* TODO: [readL, readR[. Alternatively, we could round down n such
      * that we always work on a multiple of Lanes(d), and do the last vector
      * sequentially. Then [readL, readR[ should always be empty. */
+
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                          omax1, omax2, max1x, max1y,
                          max2x, max2y, P, writeLk, writeLj,
@@ -746,12 +746,12 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
 
     qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, max1_out, max2_out);
 
-    printf("Thread %d: my start = %zu, my end = %zu\n",
-            omp_get_thread_num(), writeLk + writeLj, writeRk + writeRj);
-    printf("Thread %d: readL = %zu, readR = %zu\n",
-            omp_get_thread_num(), readLk + readLj, readRk + readRk);
-    *total1_out = writeLk + writeLj;
-    *total2_out = n - (writeRk + writeRj);
+    *low_out = writeLk + writeLj;
+    *high_out = writeRk + writeRj;
+
+    *total1_out = Blockcyc_Dist(writeLk, writeLj, start, 0, nthreads);
+    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj,
+                                nthreads);
 }
 
 void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
@@ -759,7 +759,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    size_t *total1_out, size_t *total2_out, 
                    unsigned int nthreads)
 {
-    constexpr size_t block = 1024;
+    constexpr size_t block = 4096;
     if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
         TriPartitionV(n, P, p, r, q, 
                       max1_out, max2_out, total1_out, total2_out);
@@ -769,19 +769,23 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     /* To avoid false sharing */
     size_t total1s[nthreads][8];
     size_t total2s[nthreads][8];
+    size_t lows[nthreads][8];
+    size_t highs[nthreads][8];
     Point max1s[nthreads][4];
     Point max2s[nthreads][4];
 
     #pragma omp parallel num_threads(nthreads)
     {
         unsigned int me = omp_get_thread_num();
-        size_t total1, total2;
+        size_t low, high, total1, total2;
         Point max1, max2;
 
         TriPartititionBlockCyc(n, P, p, r, q,
-                               &max1, &max2, &total1, &total2,
+                               &max1, &max2, &low, &high, &total1, &total2,
                                me * block, block, nthreads);
 
+        lows[me][0]    = high;
+        highs[me][0]   = low;
         total1s[me][0] = total1;
         total2s[me][0] = total2;
         max1s[me][0]   = max1;
@@ -790,12 +794,12 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     Point max1    = max1s[0][0];
     Point max2    = max2s[0][0];
-//    size_t total1 = total1s[0][0];
-//    size_t total2 = total2s[0][0];
+    size_t total1 = total1s[0][0];
+    size_t total2 = total2s[0][0];
 
     for (unsigned int t = 1; t < nthreads; t++) {
-//        total1 += total1s[t][0];
-//        total2 += total2s[t][0];
+        total1 += total1s[t][0];
+        total2 += total2s[t][0];
         if (orient(p, max1s[t][0], r) > orient(p, max1, r)) {
             max1 = max1s[t][0];
         }
@@ -804,8 +808,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
     }
 
-    *total1_out = 0;
-    *total2_out = 0;
+    *total1_out = total1;
+    *total2_out = total2;
     *max1_out   = max1;
     *max2_out   = max2;
 }

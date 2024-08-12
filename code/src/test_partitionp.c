@@ -60,8 +60,8 @@ int main(int argc, char **argv)
     size_t n;
     Points P = input_b(&n);
     Points P2;
-    P2.x = (double *)malloc(n * sizeof(double));
-    P2.y = (double *)malloc(n * sizeof(double));
+    P2.x = (double *)aligned_alloc(64, n * sizeof(double));
+    P2.y = (double *)aligned_alloc(64, n * sizeof(double));
     memcpy(P2.x, P.x, n * sizeof(double));
     memcpy(P2.y, P.y, n * sizeof(double));
 
