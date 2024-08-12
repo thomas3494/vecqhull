@@ -22,6 +22,11 @@ inline size_t ceildiv(size_t a, size_t b)
     return (a + b - 1) / b;
 }
 
+inline size_t roundDown(size_t a, size_t b)
+{
+    return a / b * b;
+}
+
 inline size_t max(size_t a, size_t b)
 {
     return (a > b) ? a : b;
@@ -73,6 +78,12 @@ void FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out);
 void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
                    Point *argmax1_out, Point *argmax2_out,
                    size_t *c1_out, size_t *c2_out);
+
+/* Parallelised with OpenMP */
+void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
+                   Point *max1_out, Point *max2_out,
+                   size_t *total1_out, size_t *total2_out, 
+                   unsigned int nthreads);
 
 /* Wallclock time in seconds */
 double wtime(void);
