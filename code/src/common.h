@@ -75,15 +75,15 @@ void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out);
 /* Vectorized and parallelised with OpenMP */
 void FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out);
 
+/* [0, c1_out[ contains S1, [c2_out, n[ contains S2 */
 void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
-                   Point *argmax1_out, Point *argmax2_out,
+                   Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out);
 
 /* Parallelised with OpenMP */
-void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
-                   Point *max1_out, Point *max2_out,
-                   size_t *total1_out, size_t *total2_out, 
-                   unsigned int nthreads);
+void TriPartitionP(size_t n, Points P, Point p, Point u, Point q,
+                   Point *r1_out, Point *r2_out,
+                   size_t *c1_out, size_t *c2_out, unsigned int nthreads);
 
 /* Wallclock time in seconds */
 double wtime(void);

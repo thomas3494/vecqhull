@@ -332,13 +332,52 @@ static inline void TriLoopBody(Vecd px, Vecd py,
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
 }
 
+static inline void TriLoopBodyPartial(Vecd px, Vecd py,
+                                      Vecd rx, Vecd ry,
+                                      Vecd qx, Vecd qy,
+                                      Vecd &omax1, Vecd &omax2,
+                                      Vecd &max1x, Vecd &max1y,
+                                      Vecd &max2x, Vecd &max2y,
+                                      Points P, size_t n,
+                                      size_t &writeL, size_t &writeR,
+                                      Vecd x_coor, Vecd y_coor)
+{
+    const ScalableTag<double> d;
+    /* Finding r1, r2 */
+    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
+    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
+    o1 = IfThenElse(FirstN(d, n), o1, Set(d, -DBL_MAX));
+    o2 = IfThenElse(FirstN(d, n), o2, Set(d, -DBL_MAX));
+    /* The if statement is optional, but seems to be a bit (5%) faster. */
+    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+
+    /* Partition */
+    auto maskL = (o1 > Zero(d));
+    size_t num_l = CountTrue(d, maskL);
+    CompressBlendedStore(x_coor, maskL, d, P.x + writeL);
+    CompressBlendedStore(y_coor, maskL, d, P.y + writeL);
+    writeL += num_l;
+    auto maskR = And((o2 > Zero(d)), Not(maskL));
+    size_t num_r = CountTrue(d, maskR);
+    writeR -= num_r;
+    CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
+    CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
+}
+
 /* Adepted from
  * https://arxiv.org/pdf/1704.08579
  * and
  * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
  */
 void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
-                   Point *max1_out, Point *max2_out,
+                   Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out)
 {
     const ScalableTag<double> d;
@@ -346,7 +385,9 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     Vecd max1x, max1y, max2x, max2y, x_coor, y_coor,
          px, py, rx, ry, qx, qy, omax1, omax2,
          vLx, vLy, vRx, vRy;
-    Mask<ScalableTag<double>> maskL, maskR;
+
+    omax1 = Set(d, -DBL_MAX);
+    omax2 = Set(d, -DBL_MAX);
 
     px = Set(d, p.x);
     py = Set(d, p.y);
@@ -354,67 +395,6 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
-
-    if (HWY_UNLIKELY((n < Lanes(d)))) {
-        x_coor = LoadN(d, P.x, n);
-        y_coor = LoadN(d, P.y, n);
-        auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-        auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-        o1 = IfThenElse(FirstN(d, n), o1, Set(d, -DBL_MAX));
-        o2 = IfThenElse(FirstN(d, n), o2, Set(d, -DBL_MAX));
-
-        *c1_out = CompressBlendedStore(x_coor, (o1 > Zero(d)), d, P.x);
-        CompressBlendedStore(y_coor, (o1 > Zero(d)), d, P.y);
-        *c2_out = CompressBlendedStore(x_coor, (o2 > Zero(d)), d, P.x + *c1_out);
-        CompressBlendedStore(y_coor, (o2 > Zero(d)), d, P.y + *c1_out);
-        qhull_hmax(o1, o2, x_coor, y_coor, x_coor, y_coor,
-                   max1_out, max2_out);
-        return;
-    } else if (HWY_UNLIKELY(n < 2 * Lanes(d))) {
-        x_coor = LoadU(d, P.x);
-        y_coor = LoadU(d, P.y);
-        omax1 = orientV(px, py, x_coor, y_coor, rx, ry);
-        omax2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-
-        auto x_coor2 = LoadN(d, P.x + Lanes(d), n % Lanes(d));
-        auto y_coor2 = LoadN(d, P.y + Lanes(d), n % Lanes(d));
-        auto o1 = orientV(px, py, x_coor2, y_coor2, rx, ry);
-        auto o2 = orientV(rx, ry, x_coor2, y_coor2, qx, qy);
-        o1 = IfThenElse(FirstN(d, n % Lanes(d)), o1, Set(d, -DBL_MAX));
-        o2 = IfThenElse(FirstN(d, n % Lanes(d)), o2, Set(d, -DBL_MAX));
-
-        size_t lcount1, rcount1, lcount2, rcount2;
-        lcount1 = CompressBlendedStore(x_coor, (omax1 > Zero(d)), d, P.x);
-        CompressBlendedStore(y_coor, (omax1 > Zero(d)), d, P.y);
-        lcount2 = CompressBlendedStore(x_coor2, (o1 > Zero(d)), d,
-                                        P.x + lcount1);
-        CompressBlendedStore(y_coor2, (o1 > Zero(d)), d, P.y + lcount1);
-        rcount1 = CompressBlendedStore(x_coor, (omax2 > Zero(d)), d,
-                                       P.x + lcount1 + lcount2);
-        CompressBlendedStore(y_coor, (omax2 > Zero(d)), d,
-                                       P.y + lcount1 + lcount2);
-        rcount2 = CompressBlendedStore(x_coor2, (o2 > Zero(d)), d,
-                                       P.x + lcount1 + lcount2 + rcount1);
-        CompressBlendedStore(y_coor2, (o2 > Zero(d)), d,
-                                       P.y + lcount1 + lcount2 + rcount1);
-
-        *c1_out = lcount1 + lcount2;
-        *c2_out = rcount1 + rcount2;
-
-        max1x = IfThenElse((o1 > omax1), x_coor2, x_coor);
-        max1y = IfThenElse((o1 > omax1), y_coor2, y_coor);
-        max2x = IfThenElse((o2 > omax2), x_coor2, x_coor);
-        max2y = IfThenElse((o2 > omax2), y_coor2, y_coor);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
-
-        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
-                   max1_out, max2_out);
-        return;
-    }
-
-    omax1 = Set(d, -DBL_MAX);
-    omax2 = Set(d, -DBL_MAX);
 
     /**
      * Invariant
@@ -431,6 +411,41 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     size_t readR = n - Lanes(d);
     size_t writeL = 0;
     size_t writeR = n;
+
+    if (HWY_UNLIKELY((n < Lanes(d)))) {
+        x_coor = LoadN(d, P.x, n);
+        y_coor = LoadN(d, P.y, n);
+        TriLoopBodyPartial(px, py, rx, ry, qx, qy,
+                           omax1, omax2, max1x, max1y,
+                           max2x, max2y, P, n,
+                           writeL, writeR, x_coor, y_coor);
+        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
+                   r1_out, r2_out);
+        *c1_out = writeL;
+        *c2_out = writeR;
+        return;
+    } else if (HWY_UNLIKELY(n < 2 * Lanes(d))) {
+        x_coor = LoadU(d, P.x);
+        y_coor = LoadU(d, P.y);
+        auto x_coor2 = LoadN(d, P.x + Lanes(d), n % Lanes(d));
+        auto y_coor2 = LoadN(d, P.y + Lanes(d), n % Lanes(d));
+        TriLoopBody(px, py, rx, ry, qx, qy,
+                    omax1, omax2, max1x, max1y,
+                    max2x, max2y, P,
+                    writeL, writeR, x_coor, y_coor);
+        TriLoopBodyPartial(px, py, rx, ry, qx, qy,
+                           omax1, omax2, max1x, max1y,
+                           max2x, max2y, P, n % Lanes(d),
+                           writeL, writeR, x_coor2, y_coor2);
+
+        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
+                   r1_out, r2_out);
+
+        *c1_out = writeL;
+        *c2_out = writeR;
+
+        return;
+    }
 
     vLx = LoadU(d, P.x);
     vLy = LoadU(d, P.y);
@@ -467,29 +482,12 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
                     P, writeL, writeR, x_coor, y_coor);
    }
 
-    /* [readL, readR[ */
     x_coor = LoadN(d, P.x + readL, readR - readL);
     y_coor = LoadN(d, P.y + readL, readR - readL);
-    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-    o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
-    o2 = IfThenElse(FirstN(d, readR - readL), o2, Set(d, -DBL_MAX));
-    max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-    max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-    max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-    max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-    omax1 = Max(o1, omax1);
-    omax2 = Max(o2, omax2);
-    maskL = (o1 > Zero(d));
-    maskR = And((o2 > Zero(d)), Not(maskL));
-    size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
-    CompressStore(y_coor, maskL, d, P.y + writeL);
-    writeL += num_l;
-    size_t num_r = CountTrue(d, maskR);
-    writeR -= num_r;
-    CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
-    CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
-
+    TriLoopBodyPartial(px, py, rx, ry, qx, qy,
+                       omax1, omax2, max1x, max1y,
+                       max2x, max2y, P, readR - readL,
+                       writeL, writeR, x_coor, y_coor);
     TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vLx, vLy);
@@ -497,25 +495,10 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vRx, vRy);
 
-    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, max1_out, max2_out);
+    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
 
     *c1_out = writeL;
-    *c2_out = n - writeR;
-
-    /**
-     * Condense
-     *
-     * | S1 |    undef     | S2 |
-     *     /\              /\
-     *     writeL         writeR
-     *
-     * to
-     *
-     * | S1 | S2 | undef |
-     **/
-    size_t num_elems = min(writeR - writeL, n - writeR);
-    memmove(P.x + writeL, P.x + n - num_elems, num_elems * sizeof(double));
-    memmove(P.y + writeL, P.y + n - num_elems, num_elems * sizeof(double));
+    *c2_out = writeR;
 }
 
 /**
@@ -596,15 +579,15 @@ void Blockcyc_Add(size_t &k, size_t &j, size_t count,
 
 /**
  * Computes the distance between k1 + j1 and k2 + j2 as if
- * the block cyclic subarray was compacted. 
- * Assumes k1 + j1 > k2 + j2. 
+ * the block cyclic subarray was compacted.
+ * Assumes k1 + j1 > k2 + j2.
  **/
 static inline
-size_t Blockcyc_Dist(size_t k1, size_t j1, 
+size_t Blockcyc_Dist(size_t k1, size_t j1,
                    size_t k2, size_t j2,
                    unsigned int nthreads)
 {
-    return (k1 - k2) /  nthreads + j1 - j2; 
+    return (k1 - k2) /  nthreads + j1 - j2;
 }
 
 static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
@@ -680,11 +663,11 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t writeLk = start;
     size_t writeLj = 0;
 
-    /* writeR is one past the last element we own. 
+    /* writeR is one past the last element we own.
      * The start of each block is of the form start + a * nthreads * block.
      * We want maximal a such that start + a * nthreads * block < n
      * or the maximal a such that
-     *  a * nthreads * block <= n - 1 - start. 
+     *  a * nthreads * block <= n - 1 - start.
      * We can obtain this by rounding down. */
     size_t writeRk = start + roundDown((n - 1 - start) , (block * nthreads));
     size_t writeRj = 0;
@@ -705,9 +688,9 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     Blockcyc_Read(readRk, readRj, vRx, vRy, P, block, nthreads);
 
     while (readLk + readLj + Lanes(d) <= readRk + readRj) {
-        size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj, 
+        size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj,
                                         nthreads);
-        size_t cap_right = Blockcyc_Dist(writeRk, writeRj, readRk, readRj, 
+        size_t cap_right = Blockcyc_Dist(writeRk, writeRj, readRk, readRj,
                                          nthreads);
         if (cap_left <= cap_right) {
             Blockcyc_Read(readLk, readLj, x_coor, y_coor, P, block, nthreads);
@@ -717,7 +700,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
             Blockcyc_Read(readRk, readRj, x_coor, y_coor, P, block, nthreads);
         }
 
-        /* Also advances the write pointer. 
+        /* Also advances the write pointer.
          * FIXME(?): less code that way, but you can't tell without inspecting
          * the function. Bad idea? Perhaps pass by pointer instead of pass
          * by reference. */
@@ -754,14 +737,17 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                                 nthreads);
 }
 
+/**
+ * On the cluster it is better to use 8 threads instead of 16.
+ **/
 void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    Point *max1_out, Point *max2_out,
-                   size_t *total1_out, size_t *total2_out, 
+                   size_t *total1_out, size_t *total2_out,
                    unsigned int nthreads)
 {
     constexpr size_t block = 4096;
     if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
-        TriPartitionV(n, P, p, r, q, 
+        TriPartitionV(n, P, p, r, q,
                       max1_out, max2_out, total1_out, total2_out);
         return;
     }
