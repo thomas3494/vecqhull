@@ -641,8 +641,8 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
  * of block.
  **/
 void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
-                            Point *max1_out, Point *max2_out,
-                            size_t *low_out, size_t *high_out,
+                            Point *r1_out, Point *r2_out,
+                            size_t *c1_out, size_t *c2_out,
                             size_t *total1_out, size_t *total2_out,
                             size_t start, const size_t block,
                             unsigned int nthreads)
@@ -711,10 +711,39 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                              block, nthreads);
     }
 
-    /* TODO: [readL, readR[. Alternatively, we could round down n such
-     * that we always work on a multiple of Lanes(d), and do the last vector
-     * sequentially. Then [readL, readR[ should always be empty. */
+    /* [readL, readR[. */
+    size_t readL = readLk + readLj;
+    size_t readR = readRk + readRj;
+    Blockcyc_Read(readLk, readLj, x_coor, y_coor, P, readR - readL, nthreads);
+    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
+    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
+    o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
+    o2 = IfThenElse(FirstN(d, readR - readL), o2, Set(d, -DBL_MAX));
 
+    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
+        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
+        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
+        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
+        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
+        omax1 = Max(o1, omax1);
+        omax2 = Max(o2, omax2);
+    }
+
+    auto maskL = (o1 > Zero(d));
+    size_t num_l = CountTrue(d, maskL);
+    auto tempxL = Compress(x_coor, maskL);
+    auto tempyL = Compress(y_coor, maskL);
+    Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
+    Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
+
+    auto maskR = And((o2 > Zero(d)), Not(maskL));
+    size_t num_r = CountTrue(d, maskR);
+    Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
+    auto tempxR = Compress(x_coor, maskR);
+    auto tempyR = Compress(y_coor, maskR);
+    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P, block, nthreads);
+
+    /* vL, vR */
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                          omax1, omax2, max1x, max1y,
                          max2x, max2y, P, writeLk, writeLj,
@@ -727,10 +756,10 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                          writeRk, writeRj, vRx, vRy,
                          block, nthreads);
 
-    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, max1_out, max2_out);
+    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
 
-    *low_out = writeLk + writeLj;
-    *high_out = writeRk + writeRj;
+    *c1_out = writeLk + writeLj;
+    *c2_out = writeRk + writeRj;
 
     *total1_out = Blockcyc_Dist(writeLk, writeLj, start, 0, nthreads);
     *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj,
@@ -741,63 +770,66 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
  * On the cluster it is better to use 8 threads instead of 16.
  **/
 void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
-                   Point *max1_out, Point *max2_out,
-                   size_t *total1_out, size_t *total2_out,
+                   Point *r1_out, Point *r2_out,
+                   size_t *c1_out, size_t *c2_out,
                    unsigned int nthreads)
 {
     constexpr size_t block = 4096;
     if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
         TriPartitionV(n, P, p, r, q,
-                      max1_out, max2_out, total1_out, total2_out);
+                      r1_out, r2_out, c1_out, c2_out);
         return;
     }
 
-    /* To avoid false sharing */
+    /* Pad to avoid false sharing */
     size_t total1s[nthreads][8];
     size_t total2s[nthreads][8];
-    size_t lows[nthreads][8];
-    size_t highs[nthreads][8];
-    Point max1s[nthreads][4];
-    Point max2s[nthreads][4];
+    size_t c1s[nthreads][8];
+    size_t c2s[nthreads][8];
+    Point r1s[nthreads][4];
+    Point r2s[nthreads][4];
 
     #pragma omp parallel num_threads(nthreads)
     {
         unsigned int me = omp_get_thread_num();
-        size_t low, high, total1, total2;
-        Point max1, max2;
+        size_t c1, c2, total1, total2;
+        Point r1, r2;
 
         TriPartititionBlockCyc(n, P, p, r, q,
-                               &max1, &max2, &low, &high, &total1, &total2,
+                               &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-        lows[me][0]    = high;
-        highs[me][0]   = low;
+        c1s[me][0]     = c1;
+        c2s[me][0]     = c2;
         total1s[me][0] = total1;
         total2s[me][0] = total2;
-        max1s[me][0]   = max1;
-        max2s[me][0]   = max2;
+        r1s[me][0]     = r1;
+        r2s[me][0]     = r2;
     }
 
-    Point max1    = max1s[0][0];
-    Point max2    = max2s[0][0];
+    Point r1      = r1s[0][0];
+    Point r2      = r2s[0][0];
     size_t total1 = total1s[0][0];
     size_t total2 = total2s[0][0];
 
     for (unsigned int t = 1; t < nthreads; t++) {
         total1 += total1s[t][0];
         total2 += total2s[t][0];
-        if (orient(p, max1s[t][0], r) > orient(p, max1, r)) {
-            max1 = max1s[t][0];
+        if (orient(p, r1s[t][0], r) > orient(p, r1, r)) {
+            r1 = r1s[t][0];
         }
-        if (orient(r, max2s[t][0], q) > orient(r, max2, q)) {
-            max2 = max2s[t][0];
+        if (orient(r, r2s[t][0], q) > orient(r, r2, q)) {
+            r2 = r2s[t][0];
         }
     }
 
-    *total1_out = total1;
-    *total2_out = total2;
-    *max1_out   = max1;
-    *max2_out   = max2;
+    *c1_out = total1;
+    *c2_out = n - total2;
+
+    *r1_out = r1;
+    *r2_out = r2;
+
+    /* TODO: clean up around the edges */
 }
 
 double wtime(void)
