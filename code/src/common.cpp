@@ -584,10 +584,87 @@ void Blockcyc_Add(size_t &k, size_t &j, size_t count,
  **/
 static inline
 size_t Blockcyc_Dist(size_t k1, size_t j1,
-                   size_t k2, size_t j2,
-                   unsigned int nthreads)
+                     size_t k2, size_t j2,
+                     unsigned int nthreads)
 {
-    return (k1 - k2) /  nthreads + j1 - j2;
+    return (k1 - k2) / nthreads + j1 - j2;
+}
+
+/**
+ * Copies from block cyclic array src, indices k2 + j2 to k1 + j1,
+ * to dense dest. Returns the number of elements copied.
+ **/
+static inline
+size_t Blockcyc_Copy_From(double *dest, double *src,
+                          size_t k1, size_t j1,
+                          size_t k2, size_t j2,
+                          size_t block,
+                          unsigned int nthreads)
+{
+    if (k1 == k2) {
+        memcpy(dest, src + k2 + j2, (j1 - j2) * sizeof(double));
+        return j1 - j2;
+    } else {
+        /* Copy to the end of the k2 block */
+        size_t copy_count = 0;
+        memcpy(dest + copy_count, src + k2 + j2, (block - j2) * sizeof(double));
+        copy_count += block - j2;
+        k2 += nthreads * block;
+        for (; k2 < k1; k2 += nthreads * block) {
+            memcpy(dest + copy_count, src + k2, block * sizeof(double));
+            copy_count += block;
+        }
+        memcpy(dest + copy_count, src + k2, j1 * sizeof(double));
+        copy_count += j1;
+        return copy_count;
+    }
+}
+
+/**
+ * Copies from dense array src to block cyclic array src, starting at k + j. 
+ **/
+static inline
+void Blockcyc_Copy_To(double *dest, double *src, size_t count,
+                      size_t k, size_t j,
+                      size_t block, unsigned int nthreads)
+{
+    size_t copy_count = 0;
+    memcpy(dest + k + j, src + copy_count, 
+            min(block - j, count) * sizeof(double));
+    copy_count += min(block - j, count);
+    k += block * nthreads;
+    while (copy_count + block <= count) {
+        memcpy(dest + k, src + copy_count, block * sizeof(double));
+        copy_count += block;
+        k += block * nthreads;
+    }
+    /* copy_count + block > count iff count - copy_count < block */
+    memcpy(dest + k, src + copy_count, (count - copy_count) * sizeof(double));
+    copy_count += count - copy_count;
+}
+
+/**
+ * Finds the supremum of i in the subarray belonging to thread t.
+ * That is, the smallest number greater or equal to i in
+ * t's subarray. We assume this is well-defined, so i >= t * block
+ **/
+static inline
+void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
+                  size_t *k, size_t *j)
+{
+    if ((i / block) % nthreads == t) {
+        /* i is in P(t), so sup is i */
+        *j = i % block;
+        *k = i - *j;
+    } else if (i < t * block) {
+        *k = t * block;
+        *j = 0;
+    } else {
+        /* sup is smallest t * block + l * nthreads * block >= i. */
+        size_t l = ceildiv(i - t * block, nthreads * block);
+        *k = t * block + l * nthreads * block;
+        *j = 0;
+    }
 }
 
 static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
@@ -633,6 +710,9 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
 }
 
 /**
+ * TODO: this function is incorrect, it finds too little points. Smallest
+ * reproducible example is 10000 points disk, second partition.
+ *
  * P is an array on n points. We do a block cyclic distribution determined
  * by nthreads and block. So we have indices start, ..., start + block - 1,
  * start + nthreads * block, ..., start + nthreads + block + block - 1, ...
@@ -663,15 +743,9 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t writeLk = start;
     size_t writeLj = 0;
 
-    /* writeR is one past the last element we own.
-     * The start of each block is of the form start + a * nthreads * block.
-     * We want maximal a such that start + a * nthreads * block < n
-     * or the maximal a such that
-     *  a * nthreads * block <= n - 1 - start.
-     * We can obtain this by rounding down. */
-    size_t writeRk = start + roundDown((n - 1 - start) , (block * nthreads));
-    size_t writeRj = 0;
-    Blockcyc_Add(writeRk, writeRj, min(block, n - writeRk), block, nthreads);
+    size_t writeRk, writeRj;
+    Blockcyc_Sup(start / block, n, block, nthreads, &writeRk, &writeRj);
+    printf("Last pointer is %zu\n", writeRk + writeRj);
 
     size_t last_pointk = writeRk;
     size_t last_pointj = writeRj;
@@ -681,11 +755,14 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t readRk = writeRk;
     size_t readRj = writeRj;
 
+    size_t elems_read = 0;
+    elems_read += Lanes(d);
     Blockcyc_Read(readLk, readLj, vLx, vLy, P, block, nthreads);
     Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
 
     Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
     Blockcyc_Read(readRk, readRj, vRx, vRy, P, block, nthreads);
+    elems_read += Lanes(d);
 
     while (readLk + readLj + Lanes(d) <= readRk + readRj) {
         size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj,
@@ -699,6 +776,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
             Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
             Blockcyc_Read(readRk, readRj, x_coor, y_coor, P, block, nthreads);
         }
+        elems_read += Lanes(d);
 
         /* Also advances the write pointer.
          * FIXME(?): less code that way, but you can't tell without inspecting
@@ -715,6 +793,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t readL = readLk + readLj;
     size_t readR = readRk + readRj;
     Blockcyc_Read(readLk, readLj, x_coor, y_coor, P, readR - readL, nthreads);
+    elems_read += readR - readL;
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
     o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
@@ -774,7 +853,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    size_t *c1_out, size_t *c2_out,
                    unsigned int nthreads)
 {
-    constexpr size_t block = 4096;
+    constexpr size_t block = 128;
     if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
         TriPartitionV(n, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
@@ -798,6 +877,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         TriPartititionBlockCyc(n, P, p, r, q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
+
+//        printf("Thread %u, S1 = [%zu, %zu), S2 = [%zu, n)\n",
+//                  me, me * block, c1, c2);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -823,13 +905,139 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
     }
 
-    *c1_out = total1;
-    *c2_out = n - total2;
+    size_t c1 = total1;
+    size_t c2 = n - total2;
+    *c1_out = c1;
+    *c2_out = c2;
 
     *r1_out = r1;
     *r2_out = r2;
 
-    /* TODO: clean up around the edges */
+    /**
+     * Condensation of the local S1s, S2s
+     *
+     * For each thread t, we keep track of the smallest index in P^t
+     * larger or equal than c1 (supremum), our c1s[t][0] split up into k and j,
+     * the number of elements we still need to fill (negative), or we have
+     * too many (positive). Analogously for S2.
+     **/
+
+    long s1_count[nthreads];
+    size_t c1_k[nthreads];
+    size_t c1_j[nthreads];
+    size_t c1_sup_k[nthreads];
+    size_t c1_sup_j[nthreads];
+    long total_count1 = 0;
+    long s2_count[nthreads];
+    size_t c2_k[nthreads];
+    size_t c2_j[nthreads];
+    size_t c2_sup_k[nthreads];
+    size_t c2_sup_j[nthreads];
+    long total_count2 = 0;
+
+//    printf("c1 = %zu, c2 = %zu\n", c1, c2);
+
+    for (unsigned int t = 0; t < nthreads; t++) {
+        Blockcyc_Sup(t, c1, block, nthreads, c1_sup_k + t, c1_sup_j + t);
+        c1_j[t] = c1s[t][0] % block;
+        c1_k[t] = c1s[t][0] - c1_j[t];
+//        printf("Thread %u, sup = %zu + %zu, my c1 = %zu + %zu\n",
+//                t, c1_sup_k[t], c1_sup_j[t], c1_k[t], c1_j[t]);
+        if (c1s[t][0] <= c1_sup_k[t] + c1_sup_j[t]) {
+            s1_count[t] = -Blockcyc_Dist(c1_sup_k[t], c1_sup_j[t], 
+                                         c1_k[t], c1_j[t], nthreads);
+        } else {
+            s1_count[t] = Blockcyc_Dist(c1_k[t], c1_j[t], 
+                                        c1_sup_k[t], c1_sup_j[t], nthreads);
+            total_count1 += s1_count[t];
+        }
+
+        /* For c2 we have to be a bit careful since the supremum may not
+         * exist. For c1 it is no problem if the supremum is larger than n,
+         * but because we work with unsigned arithmetic, we cannot have
+         * the superemum smaller than zero. */
+        Blockcyc_Sup(t, c2, block, nthreads, c2_sup_k + t, c2_sup_j + t);
+//        printf("Thread %u, c2 sup is %zu + %zu = %zu\n", t, c2_sup_k[t],
+//                c2_sup_j[t], c2_sup_k[t] + c2_sup_j[t]);
+        c2_j[t] = c2s[t][0] % block;
+        c2_k[t] = c2s[t][0] - c2_j[t];
+        if (c2s[t][0] >= c2_sup_k[t] + c2_sup_j[t]) {
+            s2_count[t] = -Blockcyc_Dist(c2_k[t], c2_j[t], 
+                                         c2_sup_k[t], c2_sup_j[t], nthreads);
+        } else {
+            s2_count[t] = Blockcyc_Dist(c2_sup_k[t], c2_sup_j[t],
+                                        c2_k[t], c2_j[t], nthreads);
+            total_count2 += s2_count[t];
+        }
+    }
+
+    double *s1x = (double *)malloc(total_count1 * sizeof(double));
+    double *s1y = (double *)malloc(total_count1 * sizeof(double));
+    double *s2x = (double *)malloc(total_count2 * sizeof(double));
+    double *s2y = (double *)malloc(total_count2 * sizeof(double));
+
+    /* Read into buffer */
+    total_count1 = 0;
+    total_count2 = 0;
+    for (unsigned int t = 0; t < nthreads; t++) {
+        if (s1_count[t] > 0) {
+            size_t copy_count = Blockcyc_Copy_From(s1x + total_count1, 
+                                                   P.x, c1_k[t], c1_j[t],
+                                                   c1_sup_k[t], c1_sup_j[t],
+                                                   block, nthreads);
+            Blockcyc_Copy_From(s1y + total_count1, P.y, c1_k[t], c1_j[t],
+                               c1_sup_k[t], c1_sup_j[t], block, nthreads);
+            total_count1 += copy_count;
+            if (copy_count != (size_t)s1_count[t]) {
+                printf("Thread %u, copy %zu != %zu\n",
+                        t, copy_count, s1_count[t]);
+            }
+        }
+        if (s2_count[t] > 0) {
+            size_t copy_count = Blockcyc_Copy_From(s2x + total_count2, 
+                                                   P.x, 
+                                                   c2_sup_k[t], c2_sup_j[t],
+                                                   c2_k[t], c2_j[t],
+                                                   block, nthreads);
+            Blockcyc_Copy_From(s2y + total_count2, P.y, 
+                               c2_sup_k[t], c2_sup_j[t], c2_k[t], c2_j[t],
+                               block, nthreads);
+            total_count2 += copy_count;
+            if (copy_count != (size_t)s2_count[t]) {
+                printf("copy_count = %zu, but should be %zu\n",
+                        copy_count, (size_t)s2_count[t]);
+                abort();
+            }
+        }
+    }
+
+    /* Read from buffer */
+    for (unsigned int t = 0; t < nthreads; t++) {
+        if (s1_count[t] < 0) {
+            total_count1 += s1_count[t];
+            Blockcyc_Copy_To(P.x, s1x + total_count1, -s1_count[t], 
+                             c1_k[t], c1_j[t], block, nthreads); 
+            Blockcyc_Copy_To(P.y, s1y + total_count1, -s1_count[t], 
+                             c1_k[t], c1_j[t], block, nthreads); 
+        }
+        if (s2_count[t] < 0) {
+            total_count2 += s2_count[t];
+            Blockcyc_Copy_To(P.x, s2x + total_count2, -s2_count[t], 
+                             c2_sup_k[t], c2_sup_j[t], block, nthreads); 
+            Blockcyc_Copy_To(P.y, s2y + total_count2, -s2_count[t], 
+                             c2_sup_k[t], c2_sup_j[t], block, nthreads); 
+        }
+    }
+    assert(total_count1 == 0);
+    if (total_count2 != 0) {
+        printf("Total count2 should be 0, but is %zu\n", total_count2);
+        abort();
+    }
+
+    free(s1x);
+    free(s1y);
+    free(s2x);
+    free(s2y);
 }
 
 double wtime(void)
