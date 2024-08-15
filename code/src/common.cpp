@@ -504,31 +504,8 @@ void TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
 /**
  * Operates on block cyclic subarray of P described by block, nthreads, n.
  * See paper for a picture.
- * Reads / writes in Lanes(d) elements starting at i = k + j, where j < block.
+ * Writes block < Lanes(d) elements starting at i = k + j, where j < block.
  **/
-static inline
-void Blockcyc_Read(size_t k, size_t j, Vecd &x_coor, Vecd &y_coor,
-                   Points P, size_t block, unsigned int nthreads)
-{
-    const ScalableTag<double> d;
-
-    if (j + Lanes(d) <= block) {
-        x_coor = LoadU(d, P.x + k + j);
-        y_coor = LoadU(d, P.y + k + j);
-    } else {
-        size_t countL = block - j;
-        size_t countR = Lanes(d) - countL;
-        x_coor = LoadN(d, P.x + k + j, countL);
-        y_coor = LoadN(d, P.y + k + j, countL);
-        k += nthreads * block;
-        auto temp_x = LoadN(d, P.x + k, countR);
-        auto temp_y = LoadN(d, P.y + k, countR);
-        auto mask = FirstN(d, countL);
-        x_coor = IfThenElse(mask, x_coor, temp_x);
-        y_coor = IfThenElse(mask, y_coor, temp_y);
-    }
-}
-
 static inline
 void Blockcyc_Write(size_t num, size_t k, size_t j, Vecd x_coor, Vecd y_coor,
                     Points P, size_t block, unsigned int nthreads)
@@ -560,7 +537,7 @@ void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
         j -= count;
     } else {
         k -= nthreads * block;
-        j = block + j - count;
+        j += block - count;
     }
 }
 
@@ -644,9 +621,9 @@ void Blockcyc_Copy_To(double *dest, double *src, size_t count,
 }
 
 /**
- * Finds the supremum of i in the subarray belonging to thread t.
+ * Finds the 'supremum' of i in the subarray belonging to thread t.
  * That is, the smallest number greater or equal to i in
- * t's subarray. We assume this is well-defined, so i >= t * block
+ * t's subarray. We assume this exists, so i >= t * block
  **/
 static inline
 void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
@@ -667,6 +644,7 @@ void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
     }
 }
 
+/* writes do not seem disjoint */
 static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
                                         Vecd rx, Vecd ry,
                                         Vecd qx, Vecd qy,
@@ -698,6 +676,7 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
     size_t num_l = CountTrue(d, maskL);
     auto tempxL = Compress(x_coor, maskL);
     auto tempyL = Compress(y_coor, maskL);
+//    printf("Write %zu\n", writeLk + writeLj);
     Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
     Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
 
@@ -706,19 +685,26 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
     Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
     auto tempxR = Compress(x_coor, maskR);
     auto tempyR = Compress(y_coor, maskR);
-    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P, block, nthreads);
+    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P, 
+                   block, nthreads);
 }
 
 /**
  * TODO: this function is incorrect, it finds too little points. Smallest
  * reproducible example is 10000 points disk, second partition.
  *
+ * I have checked that on the first partition, they produce the exact same
+ * points.
+ *
+ * Also reproducible for n = 10007 and block = 4. When n is not divisible by
+ * Lanes?
+ *
  * P is an array on n points. We do a block cyclic distribution determined
  * by nthreads and block. So we have indices start, ..., start + block - 1,
  * start + nthreads * block, ..., start + nthreads + block + block - 1, ...
  *
  * We assume we have at least 2 * Lanes(d) points, and start is a multiple
- * of block.
+ * of block, n is a multiple of Lanes(d).
  **/
 void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                             Point *r1_out, Point *r2_out,
@@ -745,7 +731,13 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
 
     size_t writeRk, writeRj;
     Blockcyc_Sup(start / block, n, block, nthreads, &writeRk, &writeRj);
-    printf("Last pointer is %zu\n", writeRk + writeRj);
+//    printf("Last pointer is %zu\n", writeRk + writeRj);
+//    Blockcyc_Sub(writeRk, writeRj, Lanes(d), block, nthreads);
+//    printf("One to the left is %zu\n", writeRk + writeRj);
+//    Blockcyc_Sub(writeRk, writeRj, Lanes(d), block, nthreads);
+//    printf("One to the left of that is %zu\n", writeRk + writeRj);
+//    Blockcyc_Add(writeRk, writeRj, Lanes(d), block, nthreads);
+//    Blockcyc_Add(writeRk, writeRj, Lanes(d), block, nthreads);
 
     size_t last_pointk = writeRk;
     size_t last_pointj = writeRj;
@@ -755,14 +747,17 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t readRk = writeRk;
     size_t readRj = writeRj;
 
-    size_t elems_read = 0;
-    elems_read += Lanes(d);
-    Blockcyc_Read(readLk, readLj, vLx, vLy, P, block, nthreads);
+    assert((readLk + readLj) / block % nthreads == start / block);
+//    printf("Read %zu\n", readLk + readLj);
+    vLx = LoadU(d, P.x + readLk + readLj);
+    vLy = LoadU(d, P.y + readLk + readLj);
     Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
 
     Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
-    Blockcyc_Read(readRk, readRj, vRx, vRy, P, block, nthreads);
-    elems_read += Lanes(d);
+    vRx = LoadU(d, P.x + readRk + readRj);
+    vRy = LoadU(d, P.y + readRk + readRj);
+    assert((readRk + readRj) / block % nthreads == start / block);
+//    printf("Read %zu\n", readRk + readRj);
 
     while (readLk + readLj + Lanes(d) <= readRk + readRj) {
         size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj,
@@ -770,65 +765,46 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
         size_t cap_right = Blockcyc_Dist(writeRk, writeRj, readRk, readRj,
                                          nthreads);
         if (cap_left <= cap_right) {
-            Blockcyc_Read(readLk, readLj, x_coor, y_coor, P, block, nthreads);
+            x_coor = LoadU(d, P.x + readLk + readLj);
+            y_coor = LoadU(d, P.y + readLk + readLj);
+            assert((readLk + readLj) / block % nthreads == start / block);
+//            printf("Read %zu\n", readLk + readLj);
             Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
         } else {
             Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
-            Blockcyc_Read(readRk, readRj, x_coor, y_coor, P, block, nthreads);
+            assert((readRk + readRj) / block % nthreads == start / block);
+//            printf("Read %zu\n", readRk + readRj);
+            x_coor = LoadU(d, P.x + readRk + readRj);
+            y_coor = LoadU(d, P.y + readRk + readRj);
         }
-        elems_read += Lanes(d);
 
         /* Also advances the write pointer.
          * FIXME(?): less code that way, but you can't tell without inspecting
          * the function. Bad idea? Perhaps pass by pointer instead of pass
          * by reference. */
+        assert((writeRk + writeRj) / block % nthreads == start / block);
         Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                              omax1, omax2, max1x, max1y,
                              max2x, max2y, P, writeLk, writeLj,
                              writeRk, writeRj, x_coor, y_coor,
                              block, nthreads);
+        assert((writeRk + writeRj) / block % nthreads == start / block);
     }
 
-    /* [readL, readR[. */
-    size_t readL = readLk + readLj;
-    size_t readR = readRk + readRj;
-    Blockcyc_Read(readLk, readLj, x_coor, y_coor, P, readR - readL, nthreads);
-    elems_read += readR - readL;
-    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-    o1 = IfThenElse(FirstN(d, readR - readL), o1, Set(d, -DBL_MAX));
-    o2 = IfThenElse(FirstN(d, readR - readL), o2, Set(d, -DBL_MAX));
-
-    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
-        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
-    }
-
-    auto maskL = (o1 > Zero(d));
-    size_t num_l = CountTrue(d, maskL);
-    auto tempxL = Compress(x_coor, maskL);
-    auto tempyL = Compress(y_coor, maskL);
-    Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
-    Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
-
-    auto maskR = And((o2 > Zero(d)), Not(maskL));
-    size_t num_r = CountTrue(d, maskR);
-    Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
-    auto tempxR = Compress(x_coor, maskR);
-    auto tempyR = Compress(y_coor, maskR);
-    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P, block, nthreads);
+    /* [readL, readR[ is empty because they both start at something
+     * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
+     * a time. */
+    assert(readLk + readLj == readRk + readRj);
 
     /* vL, vR */
+    assert((writeRk + writeRj) / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                          omax1, omax2, max1x, max1y,
                          max2x, max2y, P, writeLk, writeLj,
                          writeRk, writeRj, vLx, vLy,
                          block, nthreads);
 
+    assert((writeRk + writeRj) / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                          omax1, omax2, max1x, max1y,
                          max2x, max2y, P, writeLk, writeLj,
@@ -847,18 +823,24 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
 
 /**
  * On the cluster it is better to use 8 threads instead of 16.
+ *
+ * The right-hand side is not correct
  **/
 void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out,
                    unsigned int nthreads)
 {
-    constexpr size_t block = 128;
+    constexpr size_t block = 4;
     if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
         TriPartitionV(n, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
         return;
     }
+
+    const ScalableTag<double> d;
+    size_t n_end = n % Lanes(d);
+    n -= n_end;
 
     /* Pad to avoid false sharing */
     size_t total1s[nthreads][8];
@@ -878,8 +860,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-//        printf("Thread %u, S1 = [%zu, %zu), S2 = [%zu, n)\n",
-//                  me, me * block, c1, c2);
+        printf("Thread %u, S1 = [%zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
+                  me, me * block, c1, c2, total1, total2);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -906,12 +888,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     }
 
     size_t c1 = total1;
+    printf("c1 = %zu\n", c1);
     size_t c2 = n - total2;
-    *c1_out = c1;
-    *c2_out = c2;
-
-    *r1_out = r1;
-    *r2_out = r2;
 
     /**
      * Condensation of the local S1s, S2s
@@ -955,7 +933,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         /* For c2 we have to be a bit careful since the supremum may not
          * exist. For c1 it is no problem if the supremum is larger than n,
          * but because we work with unsigned arithmetic, we cannot have
-         * the superemum smaller than zero. */
+         * the supremum smaller than zero. */
         Blockcyc_Sup(t, c2, block, nthreads, c2_sup_k + t, c2_sup_j + t);
 //        printf("Thread %u, c2 sup is %zu + %zu = %zu\n", t, c2_sup_k[t],
 //                c2_sup_j[t], c2_sup_k[t] + c2_sup_j[t]);
@@ -988,10 +966,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             Blockcyc_Copy_From(s1y + total_count1, P.y, c1_k[t], c1_j[t],
                                c1_sup_k[t], c1_sup_j[t], block, nthreads);
             total_count1 += copy_count;
-            if (copy_count != (size_t)s1_count[t]) {
-                printf("Thread %u, copy %zu != %zu\n",
-                        t, copy_count, s1_count[t]);
-            }
+            assert(copy_count == (size_t)s1_count[t]);
         }
         if (s2_count[t] > 0) {
             size_t copy_count = Blockcyc_Copy_From(s2x + total_count2, 
@@ -1003,11 +978,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                c2_sup_k[t], c2_sup_j[t], c2_k[t], c2_j[t],
                                block, nthreads);
             total_count2 += copy_count;
-            if (copy_count != (size_t)s2_count[t]) {
-                printf("copy_count = %zu, but should be %zu\n",
-                        copy_count, (size_t)s2_count[t]);
-                abort();
-            }
+            assert(copy_count == (size_t)s2_count[t]);
         }
     }
 
@@ -1029,15 +1000,55 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
     }
     assert(total_count1 == 0);
-    if (total_count2 != 0) {
-        printf("Total count2 should be 0, but is %zu\n", total_count2);
-        abort();
-    }
+    assert(total_count2 == 0);
 
     free(s1x);
     free(s1y);
     free(s2x);
     free(s2y);
+
+    /**
+     * Left-overs elements from the end
+     **/
+    if (n_end != 0) {
+        double endx[n_end];
+        double endy[n_end];
+        for (size_t i = 0; i < n_end; i++) {
+            endx[i] = P.x[c2 + i];
+            endy[i] = P.y[c2 + i];
+        }
+        c2 += n_end;
+        
+        for (size_t i = 0; i < n_end; i++) {
+            Point u = {P.x[n + i], P.y[n + i]};
+            double o1 = orient(p, u, r);
+            double o2 = orient(r, u, q);
+            if (o1 > orient(p, r1, r)) {
+                r1 = u;
+            }
+            if (o2 > orient(r, r2, q)) {
+                r2 = u;
+            }
+            if (o1 > 0) {
+                P.x[c1] = u.x;
+                P.y[c1] = u.y;
+                c1++;
+            }
+            if (o2 > 0) {
+                P.x[c2] = u.x;
+                P.y[c2] = u.y;
+                c2--;
+            }
+        }
+    
+        for (size_t i = 0; i < n_end; i++) {
+            P.x[n + n_end - 1 - i] = endx[i];
+            P.y[n + n_end - 1 - i] = endy[i];
+        }
+    }
+
+    *c1_out = c1;
+    *c2_out = c2;
 }
 
 double wtime(void)
