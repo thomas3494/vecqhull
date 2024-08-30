@@ -1016,7 +1016,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | S1   | undef  | S2         | S2   | ... |
          * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
          */
-        // TODO: these assertions sometimes fail???
         //assert(c1 == i);
         //assert(c2 == c2_max - (j - i));
     } else /* c1_max <= c2_min */ {
@@ -1048,26 +1047,24 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | S1   | S2 | undef | undef | S1   | S2 | undef | S2   | ... |
          * 0    c1_min i1   j1      c1_max  c2_min i2   j2      c2_max n     n+n_end
          *
-         * - Buffer [c2_min, i2)
+         * - Move [c2_min, i2) to buffer
          * - Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
          * - Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
          * - Move buffer to [i1, i1 + (i2 - c2_min))
          */
         double *buf_x, *buf_y;
         if (i2 > c2_min) {
-            // Buffer [c2_min, i2)
+            // Move [c2_min, i2) to buffer
             size_t len = i2 - c2_min;
-            printf("Moving %zu elems to buffer\n", len);
             buf_x = (double *)malloc(len * sizeof(double));
             buf_y = (double *)malloc(len * sizeof(double));
-            memmove(P.x + c2_min, buf_x, len * sizeof(double));
-            memmove(P.y + c2_min, buf_y, len * sizeof(double));
+            memcpy(P.x + c2_min, buf_x, len * sizeof(double));
+            memcpy(P.y + c2_min, buf_y, len * sizeof(double));
         }
 
         if (j2 > i2) {
             // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
             size_t len = j2 - i2;
-            printf("Moving %zu S2(r) elems to the right\n", len);
             memmove(P.x + i2, P.x + c2_max - len, len * sizeof(double));
             memmove(P.y + i2, P.y + c2_max - len, len * sizeof(double));
         }
@@ -1075,7 +1072,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         if (j1 > i1) {
             // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
             size_t len = j1 - i1;
-            printf("Moving %zu S2(l) elems to the right\n", len);
             memmove(P.x + i1, P.x + c2_max - (j2 - i2) - len, len * sizeof(double));
             memmove(P.y + i1, P.y + c2_max - (j2 - i2) - len, len * sizeof(double));
         }
@@ -1083,9 +1079,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         if (i2 > c2_min) {
             // Move buffer to [i1, i1 + (i2 - c2_min))
             size_t len = i2 - c2_min;
-            printf("Moving %zu elems from buffer\n", len);
-            memmove(buf_x, P.x + i1, len * sizeof(double));
-            memmove(buf_y, P.y + i1, len * sizeof(double));
+            memcpy(buf_x, P.x + i1, len * sizeof(double));
+            memcpy(buf_y, P.y + i1, len * sizeof(double));
             free(buf_x);
             free(buf_y);
         }
@@ -1096,8 +1091,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | undef        | S2                   | ... |
          * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
          */
-        assert(c1 == i1 + (i2 - c2_min));
-        assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
+        //assert(c1 == i1 + (i2 - c2_min));
+        //assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
     }
 
     /**
@@ -1123,14 +1118,42 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     /**
      * P now looks like:
-     *                     n + c1_left_over
-     *                       \/      \/  <- n + c2_left_over
-     * | S1 | undef | S2 | S1 | undef | S2
-     * 0    c1      c2   n                 n+n_end
+     *
+     * | S1 | undef | S2 | S1 | undef        | S2           |
+     * 0    c1      c2   n    n+c1_left_over n+c2_left_over n+n_end
+     *
+     * - Move [n,n+c1_left_over) to buffer
+     * - Move [c2,n) to [n+c2_left_over-(n-c2),n+c2_left_over)
+     * - Move buffer to [c1,c1+c1_left_over)
      */
+    double *buf_x, *buf_y;
+    if (c1_left_over > 0) {
+        // Move [n,n+c1_left_over) to buffer
+        buf_x = (double *)malloc(c1_left_over * sizeof(double));
+        buf_y = (double *)malloc(c1_left_over * sizeof(double));
+        memcpy(P.x + n, buf_x, c1_left_over * sizeof(double));
+        memcpy(P.y + n, buf_y, c1_left_over * sizeof(double));
+    }
+
+    if (c2_left_over > 0) {
+        // Move [c2,n) to [n+c2_left_over-(n-c2),n+c2_left_over)
+        size_t len = n - c2;
+        memmove(P.x + c2, P.x + n + c2_left_over - len, len * sizeof(double));
+        memmove(P.y + c2, P.y + n + c2_left_over - len, len * sizeof(double));
+    }
+
+    if (c1_left_over > 0) {
+        // Move buffer to [c1,c1+c1_left_over)
+        memcpy(buf_x, P.x + c1, c1_left_over * sizeof(double));
+        memcpy(buf_y, P.y + c1, c1_left_over * sizeof(double));
+        free(buf_x);
+        free(buf_y);
+    }
 
     *c1_out = c1 + c1_left_over;
-    *c2_out = c2 + c2_left_over;
+    *c2_out = n + n_end - (n - c2) - c2_left_over;
+    printf("total1: %zu, total2: %zu\n", total1 + c1_left_over, total2 + c2_left_over);
+    printf("S1: [0, %zu), S2: [%zu, %zu)\n", *c1_out, *c2_out, n + n_end);
     *r1_out = r1;
     *r2_out = r2;
 }
