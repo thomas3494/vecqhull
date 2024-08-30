@@ -826,7 +826,8 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
                 size_t start, size_t end,
                 size_t *i_out, size_t *j_out)
 {
-    if (start == end || end == 0) {
+    // Ensure k does not overflow
+    if (end == 0) {
         *i_out = start;
         *j_out = start;
         return;
@@ -948,7 +949,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-        printf("Thread %2u, S1 = [%2zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
+        printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
                me, me * block, c1, c2, total1, total2);
 
         c1s[me][0]     = c1;
@@ -964,7 +965,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     size_t total1 = total1s[0][0];
     size_t total2 = total2s[0][0];
     size_t c1_min = c1s[0][0], c1_max = c1s[0][0];
-    size_t c2_min = c1s[0][0], c2_max = c2s[0][0];
+    size_t c2_min = c2s[0][0], c2_max = c2s[0][0];
 
     for (unsigned int t = 1; t < nthreads; t++) {
         total1 += total1s[t][0];
