@@ -1107,17 +1107,32 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      * 0    c1      c2   n     n+n_end
      */
 
-    // TODO: can you please do this bit @Thomas?
+    Points LeftOver = {P.x + n, P.y + n};
+    Point  r1_left_over, r2_left_over;
+    size_t c1_left_over, c2_left_over;
+    TriPartitionV(n_end, LeftOver, p, r, q,
+                  &r1_left_over, &r2_left_over,
+                  &c1_left_over, &c2_left_over);
+
+    if (orient(p, r1_left_over, r) > orient(p, r1, r)) {
+        r1 = r1_left_over;
+    }
+    if (orient(r, r2_left_over, q) > orient(r, r2, q)) {
+        r2 = r2_left_over;
+    }
 
     /**
      * P now looks like:
-     *
-     * | S1 | undef | S2 | S1 | S2 | undef |
+     *                     n + c1_left_over
+     *                       \/      \/  <- n + c2_left_over
+     * | S1 | undef | S2 | S1 | undef | S2
      * 0    c1      c2   n                 n+n_end
      */
 
-    *c1_out = c1;
-    *c2_out = c2;
+    *c1_out = c1 + c1_left_over;
+    *c2_out = c2 + c2_left_over;
+    *r1_out = r1;
+    *r2_out = r2;
 }
 
 double wtime(void)
