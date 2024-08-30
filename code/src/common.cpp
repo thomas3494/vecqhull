@@ -1107,21 +1107,13 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      * 0    c1      c2   n     n+n_end
      */
 
-    // TODO
+    // TODO: can you please do this bit @Thomas?
 
     /**
      * P now looks like:
      *
      * | S1 | undef | S2 | S1 | S2 | undef |
      * 0    c1      c2   n                 n+n_end
-     */
-
-
-    /**
-     * P now looks like:
-     *
-     * | S1 | S1 |undef | S2 | S1 | S2 | undef |
-     * 0    c1   c1+?   c2   n                 n+n_end
      */
 
     *c1_out = c1;
