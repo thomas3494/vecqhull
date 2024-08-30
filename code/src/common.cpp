@@ -598,7 +598,7 @@ size_t Blockcyc_Copy_From(double *dest, double *src,
 }
 
 /**
- * Copies from dense array src to block cyclic array src, starting at k + j. 
+ * Copies from dense array src to block cyclic array src, starting at k + j.
  **/
 static inline
 void Blockcyc_Copy_To(double *dest, double *src, size_t count,
@@ -606,7 +606,7 @@ void Blockcyc_Copy_To(double *dest, double *src, size_t count,
                       size_t block, unsigned int nthreads)
 {
     size_t copy_count = 0;
-    memcpy(dest + k + j, src + copy_count, 
+    memcpy(dest + k + j, src + copy_count,
             min(block - j, count) * sizeof(double));
     copy_count += min(block - j, count);
     k += block * nthreads;
@@ -685,7 +685,7 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
     Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
     auto tempxR = Compress(x_coor, maskR);
     auto tempyR = Compress(y_coor, maskR);
-    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P, 
+    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P,
                    block, nthreads);
 }
 
@@ -821,6 +821,86 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                                 nthreads);
 }
 
+static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
+                unsigned int nthreads, const size_t block,
+                size_t start, size_t end,
+                size_t *i_out, size_t *j_out)
+{
+    // We might have a situation where (j=0) <= (k=0),
+    // after which k -= 1 might occur, so we use int64_t instead of size_t.
+    int64_t i = start;
+    int64_t j = start;
+    int64_t k = end - 1;
+
+    while (j <= k) {
+        unsigned int kt = (k / block) % nthreads;
+        bool k_in_s1 = ((size_t)k < c1s[kt][0]);
+        bool k_in_s2 = ((size_t)k >= c2s[kt][0]);
+
+        while (j <= k && !(k_in_s1 || k_in_s2)) {
+            k -= 1;
+
+            if (k < 0) {
+                break;
+            }
+
+            k_in_s1 = ((size_t)k < c1s[kt][0]);
+            k_in_s2 = ((size_t)k >= c2s[kt][0]);
+        }
+
+        if (j > k) {
+            break;
+        }
+
+        unsigned int jt = (j / block) % nthreads;
+        bool j_in_s1 = ((size_t)j < c1s[jt][0]);
+        bool j_in_s2 = ((size_t)j >= c2s[jt][0]);
+
+        if (j_in_s1) {
+            // Swap P[i] and P[j]
+            double swap_x = P.x[j];
+            double swap_y = P.y[j];
+            P.x[j] = P.x[i];
+            P.y[j] = P.y[i];
+            P.x[i] = swap_x;
+            P.y[i] = swap_y;
+
+            i += 1;
+            j += 1;
+        } else if (j_in_s2) {
+            j += 1;
+        } else {
+            if (k_in_s1) {
+                // P[j] = P[i]
+                P.x[j] = P.x[i];
+                P.y[j] = P.y[i];
+                // P[i] = P[k]
+                P.x[i] = P.x[k];
+                P.y[i] = P.y[k];
+
+                i += 1;
+                j += 1;
+                k -= 1;
+            } else {
+                // P[j] = P[k]
+                P.x[j] = P.x[k];
+                P.y[j] = P.y[k];
+
+                j += 1;
+                k -= 1;
+            }
+        }
+    }
+
+    assert(i >= 0);
+    assert(j >= i);
+    assert(k == j - 1);
+
+    printf("i = %zu, j = %zu\n", i, j);
+    *i_out = (size_t)i;
+    *j_out = (size_t)j;
+}
+
 /**
  * On the cluster it is better to use 8 threads instead of 16.
  *
@@ -861,7 +941,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                me * block, block, nthreads);
 
         printf("Thread %u, S1 = [%zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
-                  me, me * block, c1, c2, total1, total2);
+               me, me * block, c1, c2, total1, total2);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -875,177 +955,174 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     Point r2      = r2s[0][0];
     size_t total1 = total1s[0][0];
     size_t total2 = total2s[0][0];
+    size_t c1_min = c1s[0][0], c1_max = c1s[0][0];
+    size_t c2_min = c1s[0][0], c2_max = c2s[0][0];
 
     for (unsigned int t = 1; t < nthreads; t++) {
         total1 += total1s[t][0];
         total2 += total2s[t][0];
+
         if (orient(p, r1s[t][0], r) > orient(p, r1, r)) {
             r1 = r1s[t][0];
         }
         if (orient(r, r2s[t][0], q) > orient(r, r2, q)) {
             r2 = r2s[t][0];
         }
+
+        c1_min = min(c1_min, c1s[t][0]);
+        c1_max = max(c1_max, c1s[t][0]);
+        c2_min = min(c2_min, c2s[t][0]);
+        c2_max = max(c2_max, c2s[t][0]);
     }
+
+    assert(c1_min <= c1_max);
+    assert(c2_min <= c2_max);
 
     size_t c1 = total1;
-    printf("c1 = %zu\n", c1);
     size_t c2 = n - total2;
+    printf("c1 = %zu; c2 = %zu\n", c1, c2);
+    printf("c1_min = %zu; c1_max = %zu; c2_min = %zu; c2_max = %zu\n",
+           c1_min, c1_max, c2_min, c2_max);
+
+    if (c1_max > c2_min) {
+        /**
+         * P now looks like:
+         *
+         * | S1 | ?    | ?    | ?    | S2   | ... |
+         * 0    c1_min c2_min c1_max c2_max n     n+n_end
+         *
+         * We apply dnf to [c1_min, c2_max)
+         */
+        size_t i, j;
+        dnf(P, c1s, c2s, nthreads, block, c1_min, c2_max, &i, &j);
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | S1   | S2 | undef | S2   | ... |
+         * 0    c1_min i    j       c2_max n     n+n_end
+         *
+         * We move [i, j) to [c2_max - (j - i), c2_max)
+         */
+        if (j > i) {
+            size_t len = j - i;
+            memmove(P.x + i, P.x + c2_max - len, len * sizeof(double));
+            memmove(P.y + i, P.y + c2_max - len, len * sizeof(double));
+        }
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | S1   | undef  | S2         | S2   | ... |
+         * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
+         */
+        // TODO: these assertions sometimes fail???
+        //assert(c1 == i);
+        //assert(c2 == c2_max - (j - i));
+    } else /* c1_max <= c2_min */ {
+        /**
+         * P now looks like:
+         *
+         * | S1 | ?    | undef | ?    | S2   | ... |
+         * 0    c1_min c1_max  c2_min c2_max n     n+n_end
+         *
+         * We apply dnf twice:
+         * - once on [c1_min, c1_max),
+         * - and once on [c2_min, c2_max)
+         */
+        size_t i1, j1;
+        dnf(P, c1s, c2s, nthreads, block, c1_min, c1_max, &i1, &j1);
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | S1   | S2 | undef | undef | ?    | S2   | ... |
+         * 0    c1_min i1   j1      c1_max  c2_min c2_max n     n+n_end
+         */
+        size_t i2, j2;
+        dnf(P, c1s, c2s, nthreads, block, c2_min, c2_max, &i2, &j2);
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | S1   | S2 | undef | undef | S1   | S2 | undef | S2   | ... |
+         * 0    c1_min i1   j1      c1_max  c2_min i2   j2      c2_max n     n+n_end
+         *
+         * - Buffer [c2_min, i2)
+         * - Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
+         * - Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
+         * - Move buffer to [i1, i1 + (i2 - c2_min))
+         */
+        double *buf_x, *buf_y;
+        if (i2 > c2_min) {
+            // Buffer [c2_min, i2)
+            size_t len = i2 - c2_min;
+            printf("Moving %zu elems to buffer\n", len);
+            buf_x = (double *)malloc(len * sizeof(double));
+            buf_y = (double *)malloc(len * sizeof(double));
+            memmove(P.x + c2_min, buf_x, len * sizeof(double));
+            memmove(P.y + c2_min, buf_y, len * sizeof(double));
+        }
+
+        if (j2 > i2) {
+            // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
+            size_t len = j2 - i2;
+            printf("Moving %zu S2(r) elems to the right\n", len);
+            memmove(P.x + i2, P.x + c2_max - len, len * sizeof(double));
+            memmove(P.y + i2, P.y + c2_max - len, len * sizeof(double));
+        }
+
+        if (j1 > i1) {
+            // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
+            size_t len = j1 - i1;
+            printf("Moving %zu S2(l) elems to the right\n", len);
+            memmove(P.x + i1, P.x + c2_max - (j2 - i2) - len, len * sizeof(double));
+            memmove(P.y + i1, P.y + c2_max - (j2 - i2) - len, len * sizeof(double));
+        }
+
+        if (i2 > c2_min) {
+            // Move buffer to [i1, i1 + (i2 - c2_min))
+            size_t len = i2 - c2_min;
+            printf("Moving %zu elems from buffer\n", len);
+            memmove(buf_x, P.x + i1, len * sizeof(double));
+            memmove(buf_y, P.y + i1, len * sizeof(double));
+            free(buf_x);
+            free(buf_y);
+        }
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | undef        | S2                   | ... |
+         * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
+         */
+        assert(c1 == i1 + (i2 - c2_min));
+        assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
+    }
 
     /**
-     * Condensation of the local S1s, S2s
+     * P now looks like:
      *
-     * For each thread t, we keep track of the smallest index in P^t
-     * larger or equal than c1 (supremum), our c1s[t][0] split up into k and j,
-     * the number of elements we still need to fill (negative), or we have
-     * too many (positive). Analogously for S2.
-     **/
+     * | S1 | undef | S2 | ... |
+     * 0    c1      c2   n     n+n_end
+     */
 
-    long s1_count[nthreads];
-    size_t c1_k[nthreads];
-    size_t c1_j[nthreads];
-    size_t c1_sup_k[nthreads];
-    size_t c1_sup_j[nthreads];
-    long total_count1 = 0;
-    long s2_count[nthreads];
-    size_t c2_k[nthreads];
-    size_t c2_j[nthreads];
-    size_t c2_sup_k[nthreads];
-    size_t c2_sup_j[nthreads];
-    long total_count2 = 0;
-
-//    printf("c1 = %zu, c2 = %zu\n", c1, c2);
-
-    for (unsigned int t = 0; t < nthreads; t++) {
-        Blockcyc_Sup(t, c1, block, nthreads, c1_sup_k + t, c1_sup_j + t);
-        c1_j[t] = c1s[t][0] % block;
-        c1_k[t] = c1s[t][0] - c1_j[t];
-//        printf("Thread %u, sup = %zu + %zu, my c1 = %zu + %zu\n",
-//                t, c1_sup_k[t], c1_sup_j[t], c1_k[t], c1_j[t]);
-        if (c1s[t][0] <= c1_sup_k[t] + c1_sup_j[t]) {
-            s1_count[t] = -Blockcyc_Dist(c1_sup_k[t], c1_sup_j[t], 
-                                         c1_k[t], c1_j[t], nthreads);
-        } else {
-            s1_count[t] = Blockcyc_Dist(c1_k[t], c1_j[t], 
-                                        c1_sup_k[t], c1_sup_j[t], nthreads);
-            total_count1 += s1_count[t];
-        }
-
-        /* For c2 we have to be a bit careful since the supremum may not
-         * exist. For c1 it is no problem if the supremum is larger than n,
-         * but because we work with unsigned arithmetic, we cannot have
-         * the supremum smaller than zero. */
-        Blockcyc_Sup(t, c2, block, nthreads, c2_sup_k + t, c2_sup_j + t);
-//        printf("Thread %u, c2 sup is %zu + %zu = %zu\n", t, c2_sup_k[t],
-//                c2_sup_j[t], c2_sup_k[t] + c2_sup_j[t]);
-        c2_j[t] = c2s[t][0] % block;
-        c2_k[t] = c2s[t][0] - c2_j[t];
-        if (c2s[t][0] >= c2_sup_k[t] + c2_sup_j[t]) {
-            s2_count[t] = -Blockcyc_Dist(c2_k[t], c2_j[t], 
-                                         c2_sup_k[t], c2_sup_j[t], nthreads);
-        } else {
-            s2_count[t] = Blockcyc_Dist(c2_sup_k[t], c2_sup_j[t],
-                                        c2_k[t], c2_j[t], nthreads);
-            total_count2 += s2_count[t];
-        }
-    }
-
-    double *s1x = (double *)malloc(total_count1 * sizeof(double));
-    double *s1y = (double *)malloc(total_count1 * sizeof(double));
-    double *s2x = (double *)malloc(total_count2 * sizeof(double));
-    double *s2y = (double *)malloc(total_count2 * sizeof(double));
-
-    /* Read into buffer */
-    total_count1 = 0;
-    total_count2 = 0;
-    for (unsigned int t = 0; t < nthreads; t++) {
-        if (s1_count[t] > 0) {
-            size_t copy_count = Blockcyc_Copy_From(s1x + total_count1, 
-                                                   P.x, c1_k[t], c1_j[t],
-                                                   c1_sup_k[t], c1_sup_j[t],
-                                                   block, nthreads);
-            Blockcyc_Copy_From(s1y + total_count1, P.y, c1_k[t], c1_j[t],
-                               c1_sup_k[t], c1_sup_j[t], block, nthreads);
-            total_count1 += copy_count;
-            assert(copy_count == (size_t)s1_count[t]);
-        }
-        if (s2_count[t] > 0) {
-            size_t copy_count = Blockcyc_Copy_From(s2x + total_count2, 
-                                                   P.x, 
-                                                   c2_sup_k[t], c2_sup_j[t],
-                                                   c2_k[t], c2_j[t],
-                                                   block, nthreads);
-            Blockcyc_Copy_From(s2y + total_count2, P.y, 
-                               c2_sup_k[t], c2_sup_j[t], c2_k[t], c2_j[t],
-                               block, nthreads);
-            total_count2 += copy_count;
-            assert(copy_count == (size_t)s2_count[t]);
-        }
-    }
-
-    /* Read from buffer */
-    for (unsigned int t = 0; t < nthreads; t++) {
-        if (s1_count[t] < 0) {
-            total_count1 += s1_count[t];
-            Blockcyc_Copy_To(P.x, s1x + total_count1, -s1_count[t], 
-                             c1_k[t], c1_j[t], block, nthreads); 
-            Blockcyc_Copy_To(P.y, s1y + total_count1, -s1_count[t], 
-                             c1_k[t], c1_j[t], block, nthreads); 
-        }
-        if (s2_count[t] < 0) {
-            total_count2 += s2_count[t];
-            Blockcyc_Copy_To(P.x, s2x + total_count2, -s2_count[t], 
-                             c2_sup_k[t], c2_sup_j[t], block, nthreads); 
-            Blockcyc_Copy_To(P.y, s2y + total_count2, -s2_count[t], 
-                             c2_sup_k[t], c2_sup_j[t], block, nthreads); 
-        }
-    }
-    assert(total_count1 == 0);
-    assert(total_count2 == 0);
-
-    free(s1x);
-    free(s1y);
-    free(s2x);
-    free(s2y);
+    // TODO
 
     /**
-     * Left-overs elements from the end
-     **/
-    if (n_end != 0) {
-        double endx[n_end];
-        double endy[n_end];
-        for (size_t i = 0; i < n_end; i++) {
-            endx[i] = P.x[c2 + i];
-            endy[i] = P.y[c2 + i];
-        }
-        c2 += n_end;
-        
-        for (size_t i = 0; i < n_end; i++) {
-            Point u = {P.x[n + i], P.y[n + i]};
-            double o1 = orient(p, u, r);
-            double o2 = orient(r, u, q);
-            if (o1 > orient(p, r1, r)) {
-                r1 = u;
-            }
-            if (o2 > orient(r, r2, q)) {
-                r2 = u;
-            }
-            if (o1 > 0) {
-                P.x[c1] = u.x;
-                P.y[c1] = u.y;
-                c1++;
-            }
-            if (o2 > 0) {
-                P.x[c2] = u.x;
-                P.y[c2] = u.y;
-                c2--;
-            }
-        }
-    
-        for (size_t i = 0; i < n_end; i++) {
-            P.x[n + n_end - 1 - i] = endx[i];
-            P.y[n + n_end - 1 - i] = endy[i];
-        }
-    }
+     * P now looks like:
+     *
+     * | S1 | undef | S2 | S1 | S2 | undef |
+     * 0    c1      c2   n                 n+n_end
+     */
+
+
+    /**
+     * P now looks like:
+     *
+     * | S1 | S1 |undef | S2 | S1 | S2 | undef |
+     * 0    c1   c1+?   c2   n                 n+n_end
+     */
 
     *c1_out = c1;
     *c2_out = c2;

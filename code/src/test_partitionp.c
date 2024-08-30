@@ -6,7 +6,7 @@
 
 #include "common.h"
 
-void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q, 
+void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out, size_t *c1_out,
                    size_t *c2_out)
 {
@@ -17,11 +17,11 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     TriPartitionV(n, P, p, r, q, &r1, &r2, &c1, &c2);
     double time4 = wtime();
 
-    Points S2 = {P.x + c2, P.y + c2};
-    PrintPoints(n - c2, S2);
+    //Points S2 = {P.x + c2, P.y + c2};
+    //PrintPoints(n - c2, S2);
 
     double duration = time4 - time3;
-    printf("Sequential took %lf ms, or %lf gflops or %lf GB/s\n", 
+    printf("Sequential took %lf ms, or %lf gflops or %lf GB/s\n",
             duration * 1e3,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
@@ -41,7 +41,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
 //    PrintPoints(n - c2, S2);
 
     duration = time4 - time3;
-    printf("Parallel took %lf ms, or %lf gflops or %lf GB/s\n", 
+    printf("Parallel took %lf ms, or %lf gflops or %lf GB/s\n",
             duration * 1e3,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);

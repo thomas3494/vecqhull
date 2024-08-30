@@ -12,7 +12,7 @@ int main(int argc, char **argv)
         printf("Usage: Provide points on stdin in PBBS format.\n"
                "s will print summary of results to stderr\n"
                "b will print runtime in seconds to stdout\n"
-               "p will print points to stdout");
+               "p will print points to stdout\n");
         return EXIT_FAILURE;
     }
 
