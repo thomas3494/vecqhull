@@ -1025,9 +1025,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     size_t c1 = total1;
     size_t c2 = n - total2;
-    printf("c1     = %zu; c2     = %zu\n", c1, c2);
-    printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
-    printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
+    //printf("c1     = %zu; c2     = %zu\n", c1, c2);
+    //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
+    //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
 
     size_t src, dest;
     if (c1_max >= c2_min) {
@@ -1057,7 +1057,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         if (j > i) {
             size_t len = j - i;
-            printf("Move P[%zu, %zu) to P[%zu, %zu)]\n", i, i + len, c2_max - len, c2_max);
             src = i;
             dest = c2_max - len;
             memmove(P.x + dest, P.x + src, len * sizeof(double));
@@ -1176,7 +1175,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             r2 = r2_left_over;
         }
 
-        printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
+        //printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
 
         /**
          * P now looks like:
