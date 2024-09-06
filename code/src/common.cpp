@@ -884,6 +884,30 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
     *j_out = j;
 }
 
+static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
+{
+    memmove(P.x + dest, P.x + src, len * sizeof(double));
+    memmove(P.y + dest, P.y + src, len * sizeof(double));
+}
+
+static void CopyPointsToBuffer(Points P, size_t src, size_t len,
+                               double **buf_x, double **buf_y)
+{
+    *buf_x = (double *)malloc(len * sizeof(double));
+    *buf_y = (double *)malloc(len * sizeof(double));
+    memcpy(*buf_x, P.x + src, len * sizeof(double));
+    memcpy(*buf_y, P.y + src, len * sizeof(double));
+}
+
+static void CopyPointsFromBuffer(Points P, size_t dest, size_t len,
+                                 double **buf_x, double **buf_y)
+{
+    memcpy(P.x + dest, *buf_x, len * sizeof(double));
+    memcpy(P.y + dest, *buf_y, len * sizeof(double));
+    free(*buf_x);
+    free(*buf_y);
+}
+
 /**
  * On the cluster it is better to use 8 threads instead of 16.
  *
@@ -968,7 +992,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
     //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
 
-    size_t src, dest;
     if (c1_max >= c2_min) {
         /**
          * P now looks like:
@@ -980,6 +1003,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         size_t i, j;
         dnf(P, c1s, c2s, nthreads, block, c1_min, c2_max, &i, &j);
+        size_t len = j - i;
 
         /**
          * P now looks like:
@@ -994,12 +1018,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          *
          * We move [i, j) to [c2_max - (j - i), c2_max)
          */
-        if (j > i) {
-            size_t len = j - i;
-            src = i;
-            dest = c2_max - len;
-            memmove(P.x + dest, P.x + src, len * sizeof(double));
-            memmove(P.y + dest, P.y + src, len * sizeof(double));
+        if (len > 0) {
+            MovePointsLocal(P, i, c2_max - len, len);
         }
 
         /**
@@ -1009,7 +1029,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
          */
         assert(c1 == i);
-        assert(c2 == c2_max - (j - i));
+        assert(c2 == c2_max - len);
     } else /* c1_max < c2_min */ {
         /**
          * P now looks like:
@@ -1023,6 +1043,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         size_t i1, j1;
         dnf(P, c1s, c2s, nthreads, block, c1_min, c1_max, &i1, &j1);
+        size_t len1 = j1 - i1;
 
         /**
          * P now looks like:
@@ -1032,6 +1053,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         size_t i2, j2;
         dnf(P, c1s, c2s, nthreads, block, c2_min, c2_max, &i2, &j2);
+        size_t len2 = j2 - i2;
 
         /**
          * P now looks like:
@@ -1045,42 +1067,25 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * - Move buffer to [i1, i1 + (i2 - c2_min))
          */
         double *buf_x, *buf_y;
-        if (i2 > c2_min) {
+        size_t buf_len = i2 - c2_min;
+        if (buf_len > 0) {
             // Move [c2_min, i2) to buffer
-            size_t len = i2 - c2_min;
-            buf_x = (double *)malloc(len * sizeof(double));
-            buf_y = (double *)malloc(len * sizeof(double));
-            src = c2_min;
-            memcpy(buf_x, P.x + src, len * sizeof(double));
-            memcpy(buf_y, P.y + src, len * sizeof(double));
+            CopyPointsToBuffer(P, c2_min, buf_len, &buf_x, &buf_y);
         }
 
-        if (j2 > i2) {
+        if (len2 > 0) {
             // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
-            size_t len = j2 - i2;
-            src = i2;
-            dest = c2_max - len;
-            memmove(P.x + dest, P.x + src, len * sizeof(double));
-            memmove(P.y + dest, P.y + src, len * sizeof(double));
+            MovePointsLocal(P, i2, c2_max - len2, len2);
         }
 
-        if (j1 > i1) {
+        if (len1 > 0) {
             // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
-            size_t len = j1 - i1;
-            src = i1;
-            dest = c2_max - (j2 - i2) - len;
-            memmove(P.x + dest, P.x + src, len * sizeof(double));
-            memmove(P.y + dest, P.y + src, len * sizeof(double));
+            MovePointsLocal(P, i1, c2_max - len2 - len1, len1);
         }
 
-        if (i2 > c2_min) {
+        if (buf_len) {
             // Move buffer to [i1, i1 + (i2 - c2_min))
-            size_t len = i2 - c2_min;
-            dest = i1;
-            memcpy(P.x + dest, buf_x, len * sizeof(double));
-            memcpy(P.y + dest, buf_y, len * sizeof(double));
-            free(buf_x);
-            free(buf_y);
+            CopyPointsFromBuffer(P, i1, buf_len, &buf_x, &buf_y);
         }
 
         /**
@@ -1089,8 +1094,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | undef        | S2                   | ... |
          * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
          */
-        assert(c1 == i1 + (i2 - c2_min));
-        assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
+        assert(c1 == i1 + buf_len);
+        assert(c2 == c2_max - len2 - len1);
     }
 
     /**
@@ -1129,34 +1134,20 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         double *buf_x, *buf_y;
         if (c1_left_over > 0) {
             // Move [n,n+c1_left_over) to buffer
-            buf_x = (double *)malloc(c1_left_over * sizeof(double));
-            buf_y = (double *)malloc(c1_left_over * sizeof(double));
-            src = n;
-            memcpy(buf_x, P.x + src, c1_left_over * sizeof(double));
-            memcpy(buf_y, P.y + src, c1_left_over * sizeof(double));
+            CopyPointsToBuffer(P, n, c1_left_over, &buf_x, &buf_y);
         }
 
         if (n > c2) {
             // Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
-            size_t len = n - c2;
-            src = c2;
-            //dest = n + n_end - c2_left_over - len;
-            dest = c2 - c2_left_over + n_end;
-            memmove(P.x + dest, P.x + src, len * sizeof(double));
-            memmove(P.y + dest, P.y + src, len * sizeof(double));
+            MovePointsLocal(P, c2, c2 - c2_left_over + n_end, n - c2);
         }
 
         if (c1_left_over > 0) {
             // Move buffer to [c1,c1+c1_left_over)
-            dest = c1;
-            memcpy(P.x + dest, buf_x, c1_left_over * sizeof(double));
-            memcpy(P.y + dest, buf_y, c1_left_over * sizeof(double));
-            free(buf_x);
-            free(buf_y);
+            CopyPointsFromBuffer(P, c1, c1_left_over, &buf_x, &buf_y);
         }
 
         c1 += c1_left_over;
-        //c2 = n + n_end - (n - c2) - c2_left_over;
         c2 = c2 - c2_left_over + n_end;
     }
 
