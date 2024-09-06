@@ -817,6 +817,9 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
         }
 
         if (j > k) {
+            /**
+             * TODO: is there some remaining work we have to do here?
+             */
             break;
         }
 
