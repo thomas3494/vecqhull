@@ -10,13 +10,15 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out, size_t *c1_out,
                    size_t *c2_out)
 {
-    Point r1, r2;
-    size_t c1, c2;
+    Point r1_seq, r2_seq;
+    Point r1_par, r2_par;
+    size_t c1_seq, c2_seq;
+    size_t c1_par, c2_par;
 
     printf("\n========== Sequential ==========\n");
 
     double time3 = wtime();
-    TriPartitionV(n, P, p, r, q, &r1, &r2, &c1, &c2);
+    TriPartitionV(n, P, p, r, q, &r1_seq, &r2_seq, &c1_seq, &c2_seq);
     double time4 = wtime();
 
     //Points S2 = {P.x + c2, P.y + c2};
@@ -27,8 +29,8 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
             duration * 1e3,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
-    printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1.x, r1.y, r2.x, r2.y);
-    printf("c1 = %zu, c2 = %zu\n", c1, c2);
+    printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1_seq.x, r1_seq.y, r2_seq.x, r2_seq.y);
+    printf("c1 = %zu, c2 = %zu\n", c1_seq, c2_seq);
 
     printf("\n========== Parallel ==========\n");
 
@@ -38,7 +40,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
         nthreads = omp_get_num_threads();
     }
     time3 = wtime();
-    TriPartitionP(n, P2, p, r, q, &r1, &r2, &c1, &c2, nthreads);
+    TriPartitionP(n, P2, p, r, q, &r1_par, &r2_par, &c1_par, &c2_par, nthreads);
     time4 = wtime();
 
 //    Points S2 = {P2.x + c2, P2.y + c2};
@@ -49,11 +51,11 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
             duration * 1e3,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
-    printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1.x, r1.y, r2.x, r2.y);
-    printf("c1 = %zu, c2 = %zu\n", c1, c2);
+    printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1_par.x, r1_par.y, r2_par.x, r2_par.y);
+    printf("c1 = %zu, c2 = %zu\n", c1_par, c2_par);
 
     bool success = true;
-    for (size_t i = 0; i < c1; i++) {
+    for (size_t i = 0; i < c1_par; i++) {
         Point u = {P2.x[i], P2.y[i]};
         if (!(orient(p, u, r) > 0)) {
             printf("Error at S1 (%zu not in S1)\n", i);
@@ -61,7 +63,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
         }
     }
 
-    for (size_t i = c2; i < n; i++) {
+    for (size_t i = c2_par; i < n; i++) {
         Point u = {P2.x[i], P2.y[i]};
         if (!(orient(r, u, q) > 0)) {
             printf("Error at S2 (%zu not in S2)\n", i);
@@ -74,12 +76,32 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
         }
     }
 
+    if (r1_seq.x != r1_par.x || r1_seq.y != r1_par.y) {
+        printf("R1 not equal\n");
+        success = false;
+    }
+
+    if (r2_seq.x != r2_par.x || r2_seq.y != r2_par.y) {
+        printf("R1 not equal\n");
+        success = false;
+    }
+
+    if (c1_seq != c1_par) {
+        printf("C1 not equal\n");
+        success = false;
+    }
+
+    if (c2_seq != c2_par) {
+        printf("C2 not equal\n");
+        success = false;
+    }
+
     printf("Partition was %ssuccesfull\n", (success) ? "" : "un");
 
-    *r1_out = r1;
-    *r2_out = r2;
-    *c1_out = c1;
-    *c2_out = c2;
+    *r1_out = r1_par;
+    *r2_out = r2_par;
+    *c1_out = c1_par;
+    *c2_out = c2_par;
 }
 
 int main(int argc, char **argv)
