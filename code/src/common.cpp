@@ -874,10 +874,11 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
         }
 
         assert(k_in_s1 || k_in_s2);
+        assert(!(k_in_s1 && k_in_s2));
         assert(i >= start);
         assert(j >= start);
         assert(j >= i);
-        assert(k > 0);
+        assert(k >= j);
         assert(k < end);
 
         bool j_in_s1 = in_s1(j, c1s, nthreads, block);
@@ -925,7 +926,7 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
                 j += 1;
             }
 
-            // Break early to ensure that k does not overflow
+            // Break early to ensure that k does not underflow
             if (k == 0) {
                 break;
             }
@@ -1170,11 +1171,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         /**
          * P now looks like:
          *
-         * | S1 | undef | S2 | S1 | undef        | S2           |
-         * 0    c1      c2   n    n+c1_left_over n+c2_left_over n+n_end
+         * | S1 | undef | S2 | S1 | undef        | S2                 |
+         * 0    c1      c2   n    n+c1_left_over n+n_end-c2_left_over n+n_end
          *
          * - Move [n,n+c1_left_over) to buffer
-         * - Move [c2,n) to [n+c2_left_over-(n-c2),n+c2_left_over)
+         * - Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
          * - Move buffer to [c1,c1+c1_left_over)
          */
         double *buf_x, *buf_y;
@@ -1187,10 +1188,10 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
 
         if (n > c2) {
-            // Move [c2,n) to [n+c2_left_over-(n-c2),n+c2_left_over)
+            // Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
             size_t len = n - c2;
-            memmove(P.x + c2, P.x + n + c2_left_over - len, len * sizeof(double));
-            memmove(P.y + c2, P.y + n + c2_left_over - len, len * sizeof(double));
+            memmove(P.x + c2, P.x + n + n_end - c2_left_over - len, len * sizeof(double));
+            memmove(P.y + c2, P.y + n + n_end - c2_left_over - len, len * sizeof(double));
         }
 
         if (c1_left_over > 0) {
