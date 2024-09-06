@@ -128,6 +128,7 @@ int main(int argc, char **argv)
 
     double time2 = wtime();
     printf("Finding left and right took %lf ms\n", (time2 - time1) * 1e3);
+    printf("p = (%e, %e), q = (%e, %e)\n", p.x, p.y, q.x, q.y);
 
     Point r1, r2;
     size_t c1, c2;
