@@ -535,11 +535,11 @@ void Blockcyc_Write(size_t num, size_t k, size_t j, Vecd x_coor, Vecd y_coor,
     }
 }
 
-/* Assumes count < block */
 static inline
 void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
                   size_t block, unsigned int nthreads)
 {
+    assert(count < block);
     if (j >= count) {
         j -= count;
     } else {
@@ -548,11 +548,11 @@ void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
     }
 }
 
-/* Assumes count < block */
 static inline
 void Blockcyc_Add(size_t &k, size_t &j, size_t count,
                   size_t block, unsigned int nthreads)
 {
+    assert(count < block);
     if (j + count < block) {
         j += count;
     } else {
@@ -564,25 +564,27 @@ void Blockcyc_Add(size_t &k, size_t &j, size_t count,
 /**
  * Computes the distance between k1 + j1 and k2 + j2 as if
  * the block cyclic subarray was compacted.
- * Assumes k1 + j1 > k2 + j2.
- **/
+ */
 static inline
 size_t Blockcyc_Dist(size_t k1, size_t j1,
                      size_t k2, size_t j2,
                      unsigned int nthreads)
 {
+    assert(k1 >= k2);
+    assert((k1 - k2) / nthreads + j1 >= j2);
+    //assert(k1 + j1 > k2 + j2);
     return (k1 - k2) / nthreads + j1 - j2;
 }
 
 /**
  * Finds the 'supremum' of i in the subarray belonging to thread t.
- * That is, the smallest number greater or equal to i in
- * t's subarray. We assume this exists, so i >= t * block
- **/
+ * That is, the smallest number greater or equal to i in t's subarray.
+ */
 static inline
 void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
                   size_t *k, size_t *j)
 {
+    assert(i >= t * block);
     if ((i / block) % nthreads == t) {
         /* i is in P(t), so sup is i */
         *j = i % block;
@@ -650,7 +652,7 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
  *
  * We assume we have at least 2 * Lanes(d) points, and start is a multiple
  * of block, n is a multiple of Lanes(d).
- **/
+ */
 void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                             Point *r1_out, Point *r2_out,
                             size_t *c1_out, size_t *c2_out,
@@ -762,32 +764,26 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     *c2_out = writeRk + writeRj;
 
     *total1_out = Blockcyc_Dist(writeLk, writeLj, start, 0, nthreads);
-    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj,
-                                nthreads);
+    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj, nthreads);
 }
 
 static bool in_s1(size_t idx, size_t c1s[][8], unsigned int nthreads, size_t block)
 {
-    assert(nthreads > 0);
-    assert(block > 0);
     unsigned int thread_idx = (idx / block) % nthreads;
-    assert(thread_idx < nthreads);
     size_t thread_s1_end = c1s[thread_idx][0];
     return idx < thread_s1_end;
 }
 
 static bool in_s2(size_t idx, size_t c2s[][8], unsigned int nthreads, size_t block)
 {
-    assert(nthreads > 0);
-    assert(block > 0);
     unsigned int thread_idx = (idx / block) % nthreads;
-    assert(thread_idx < nthreads);
     size_t thread_s2_start = c2s[thread_idx][0];
     return idx >= thread_s2_start;
 }
 
 static bool in_undef(bool in_s1, bool in_s2)
 {
+    assert(!(in_s1 && in_s2));
     return !(in_s1 || in_s2);
 }
 
@@ -805,7 +801,6 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
     while (j <= k) {
         bool k_in_s1 = in_s1(k, c1s, nthreads, block);
         bool k_in_s2 = in_s2(k, c2s, nthreads, block);
-        assert(!(k_in_s1 && k_in_s2));
         bool k_undef = in_undef(k_in_s1, k_in_s2);
 
         while (k_undef && j <= k && k > 0) {
@@ -913,7 +908,7 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
 
 static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
 {
-    if (len > 0) {
+    if (len > 0 && dest != src) {
         memmove(P.x + dest, P.x + src, len * sizeof(double));
         memmove(P.y + dest, P.y + src, len * sizeof(double));
     }
