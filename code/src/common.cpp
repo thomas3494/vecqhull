@@ -982,15 +982,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_max = max(c2_max, c2s[t][0]);
     }
 
+    //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
+    //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
     assert(c1_min <= c1_max);
     assert(c2_min <= c2_max);
     assert(c1_min < c2_max);
-
-    size_t c1 = total1;
-    size_t c2 = n - total2;
-    //printf("c1     = %zu; c2     = %zu\n", c1, c2);
-    //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
-    //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
 
     if (c1_max >= c2_min) {
         /**
@@ -1028,8 +1024,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | S1   | undef  | S2         | S2   | ... |
          * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
          */
-        assert(c1 == i);
-        assert(c2 == c2_max - len);
+        assert(total1 == i);
+        assert(n - total2 == c2_max - len);
     } else /* c1_max < c2_min */ {
         /**
          * P now looks like:
@@ -1094,15 +1090,15 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | undef        | S2                   | ... |
          * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
          */
-        assert(c1 == i1 + buf_len);
-        assert(c2 == c2_max - len2 - len1);
+        assert(total1 == i1 + buf_len);
+        assert(n - total2 == c2_max - len2 - len1);
     }
 
     /**
      * P now looks like:
      *
-     * | S1 | undef | S2 | ... |
-     * 0    c1      c2   n     n+n_end
+     * | S1 | undef | S2     | ... |
+     * 0    total1  n-total2 n     n+n_end
      */
     if (n_end > 0) {
         Points LeftOver = {P.x + n, P.y + n};
@@ -1112,24 +1108,26 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        if (orient(p, r1_left_over, r) > orient(p, r1, r)) {
+        if (/*(c1_left_over > 0) &&*/ (orient(p, r1_left_over, r) > orient(p, r1, r))) {
             r1 = r1_left_over;
         }
-        if (orient(r, r2_left_over, q) > orient(r, r2, q)) {
+        if (/*(c2_left_over < n_end) &&*/ (orient(r, r2_left_over, q) > orient(r, r2, q))) {
             r2 = r2_left_over;
         }
 
         //printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
+        assert(c1_left_over <= c2_left_over);
+        assert(c2_left_over <= n_end);
 
         /**
          * P now looks like:
          *
-         * | S1 | undef | S2 | S1 | undef        | S2                 |
-         * 0    c1      c2   n    n+c1_left_over n+n_end-c2_left_over n+n_end
+         * | S1 | undef | S2     | S1 | undef        | S2           |
+         * 0    total1  n-total2 n    n+c1_left_over n+c2_left_over n+n_end
          *
          * - Move [n,n+c1_left_over) to buffer
-         * - Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
-         * - Move buffer to [c1,c1+c1_left_over)
+         * - Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
+         * - Move buffer to [total1,total1+c1_left_over)
          */
         double *buf_x, *buf_y;
         if (c1_left_over > 0) {
@@ -1137,23 +1135,23 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             CopyPointsToBuffer(P, n, c1_left_over, &buf_x, &buf_y);
         }
 
-        if (n > c2) {
-            // Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
-            MovePointsLocal(P, c2, c2 - c2_left_over + n_end, n - c2);
+        if (total2 > 0) {
+            // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
+            MovePointsLocal(P, n - total2, n + c2_left_over - total2, total2);
         }
 
         if (c1_left_over > 0) {
-            // Move buffer to [c1,c1+c1_left_over)
-            CopyPointsFromBuffer(P, c1, c1_left_over, &buf_x, &buf_y);
+            // Move buffer to [total1,total1+c1_left_over)
+            CopyPointsFromBuffer(P, total1, c1_left_over, &buf_x, &buf_y);
         }
 
-        c1 += c1_left_over;
-        c2 = c2 - c2_left_over + n_end;
+        total1 += c1_left_over;
+        total2 += c2_left_over;
     }
 
-    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", c1, c2, n + n_end);
-    *c1_out = c1;
-    *c2_out = c2;
+    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n - total2, n + n_end);
+    *c1_out = total1;
+    *c2_out = n + n_end - total2;
     *r1_out = r1;
     *r2_out = r2;
 }
