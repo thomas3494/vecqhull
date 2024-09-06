@@ -842,13 +842,6 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
                 size_t start, size_t end,
                 size_t *i_out, size_t *j_out)
 {
-    // Ensure k does not overflow
-    if (end == 0) {
-        *i_out = start;
-        *j_out = start;
-        return;
-    }
-
     assert(start < end);
 
     size_t i = start;
