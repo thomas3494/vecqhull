@@ -112,7 +112,7 @@ void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = right;
 }
 
-/* Adepted from
+/* Adapted from
  * https://en.algorithmica.org/hpc/algorithms/argmin */
 void FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
 {
@@ -371,7 +371,7 @@ static inline void TriLoopBodyPartial(Vecd px, Vecd py,
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
 }
 
-/* Adepted from
+/* Adapted from
  * https://arxiv.org/pdf/1704.08579
  * and
  * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
@@ -571,54 +571,54 @@ size_t Blockcyc_Dist(size_t k1, size_t j1,
  * Copies from block cyclic array src, indices k2 + j2 to k1 + j1,
  * to dense dest. Returns the number of elements copied.
  **/
-static inline
-size_t Blockcyc_Copy_From(double *dest, double *src,
-                          size_t k1, size_t j1,
-                          size_t k2, size_t j2,
-                          size_t block,
-                          unsigned int nthreads)
-{
-    if (k1 == k2) {
-        memcpy(dest, src + k2 + j2, (j1 - j2) * sizeof(double));
-        return j1 - j2;
-    } else {
-        /* Copy to the end of the k2 block */
-        size_t copy_count = 0;
-        memcpy(dest + copy_count, src + k2 + j2, (block - j2) * sizeof(double));
-        copy_count += block - j2;
-        k2 += nthreads * block;
-        for (; k2 < k1; k2 += nthreads * block) {
-            memcpy(dest + copy_count, src + k2, block * sizeof(double));
-            copy_count += block;
-        }
-        memcpy(dest + copy_count, src + k2, j1 * sizeof(double));
-        copy_count += j1;
-        return copy_count;
-    }
-}
+//static inline
+//size_t Blockcyc_Copy_From(double *dest, double *src,
+//                          size_t k1, size_t j1,
+//                          size_t k2, size_t j2,
+//                          size_t block,
+//                          unsigned int nthreads)
+//{
+//    if (k1 == k2) {
+//        memcpy(dest, src + k2 + j2, (j1 - j2) * sizeof(double));
+//        return j1 - j2;
+//    } else {
+//        /* Copy to the end of the k2 block */
+//        size_t copy_count = 0;
+//        memcpy(dest + copy_count, src + k2 + j2, (block - j2) * sizeof(double));
+//        copy_count += block - j2;
+//        k2 += nthreads * block;
+//        for (; k2 < k1; k2 += nthreads * block) {
+//            memcpy(dest + copy_count, src + k2, block * sizeof(double));
+//            copy_count += block;
+//        }
+//        memcpy(dest + copy_count, src + k2, j1 * sizeof(double));
+//        copy_count += j1;
+//        return copy_count;
+//    }
+//}
 
 /**
  * Copies from dense array src to block cyclic array src, starting at k + j.
  **/
-static inline
-void Blockcyc_Copy_To(double *dest, double *src, size_t count,
-                      size_t k, size_t j,
-                      size_t block, unsigned int nthreads)
-{
-    size_t copy_count = 0;
-    memcpy(dest + k + j, src + copy_count,
-            min(block - j, count) * sizeof(double));
-    copy_count += min(block - j, count);
-    k += block * nthreads;
-    while (copy_count + block <= count) {
-        memcpy(dest + k, src + copy_count, block * sizeof(double));
-        copy_count += block;
-        k += block * nthreads;
-    }
-    /* copy_count + block > count iff count - copy_count < block */
-    memcpy(dest + k, src + copy_count, (count - copy_count) * sizeof(double));
-    copy_count += count - copy_count;
-}
+//static inline
+//void Blockcyc_Copy_To(double *dest, double *src, size_t count,
+//                      size_t k, size_t j,
+//                      size_t block, unsigned int nthreads)
+//{
+//    size_t copy_count = 0;
+//    memcpy(dest + k + j, src + copy_count,
+//            min(block - j, count) * sizeof(double));
+//    copy_count += min(block - j, count);
+//    k += block * nthreads;
+//    while (copy_count + block <= count) {
+//        memcpy(dest + k, src + copy_count, block * sizeof(double));
+//        copy_count += block;
+//        k += block * nthreads;
+//    }
+//    /* copy_count + block > count iff count - copy_count < block */
+//    memcpy(dest + k, src + copy_count, (count - copy_count) * sizeof(double));
+//    copy_count += count - copy_count;
+//}
 
 /**
  * Finds the 'supremum' of i in the subarray belonging to thread t.
@@ -690,15 +690,6 @@ static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
 }
 
 /**
- * TODO: this function is incorrect, it finds too little points. Smallest
- * reproducible example is 10000 points disk, second partition.
- *
- * I have checked that on the first partition, they produce the exact same
- * points.
- *
- * Also reproducible for n = 10007 and block = 4. When n is not divisible by
- * Lanes?
- *
  * P is an array on n points. We do a block cyclic distribution determined
  * by nthreads and block. So we have indices start, ..., start + block - 1,
  * start + nthreads * block, ..., start + nthreads + block + block - 1, ...
@@ -821,6 +812,31 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                                 nthreads);
 }
 
+static bool in_s1(size_t idx, size_t c1s[][8], unsigned int nthreads, size_t block)
+{
+    assert(nthreads > 0);
+    assert(block > 0);
+    unsigned int thread_idx = (idx / block) % nthreads;
+    assert(thread_idx < nthreads);
+    size_t thread_s1_end = c1s[thread_idx][0];
+    return idx < thread_s1_end;
+}
+
+static bool in_s2(size_t idx, size_t c2s[][8], unsigned int nthreads, size_t block)
+{
+    assert(nthreads > 0);
+    assert(block > 0);
+    unsigned int thread_idx = (idx / block) % nthreads;
+    assert(thread_idx < nthreads);
+    size_t thread_s2_start = c2s[thread_idx][0];
+    return idx >= thread_s2_start;
+}
+
+static bool in_undef(bool in_s1, bool in_s2)
+{
+    return !(in_s1 || in_s2);
+}
+
 static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
                 unsigned int nthreads, const size_t block,
                 size_t start, size_t end,
@@ -840,24 +856,33 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
     size_t k = end - 1;
 
     while (j <= k) {
-        unsigned int kt = (k / block) % nthreads;
-        bool k_in_s1 = (k < c1s[kt][0]);
-        bool k_in_s2 = (k >= c2s[kt][0]);
+        bool k_in_s1 = in_s1(k, c1s, nthreads, block);
+        bool k_in_s2 = in_s2(k, c2s, nthreads, block);
+        assert(!(k_in_s1 && k_in_s2));
+        bool k_undef = in_undef(k_in_s1, k_in_s2);
 
-        while (k > 0 && j <= k && !(k_in_s1 || k_in_s2)) {
+        while (k_undef && j <= k && k > 0) {
             k -= 1;
-            kt = (k / block) % nthreads;
-            k_in_s1 = (k < c1s[kt][0]);
-            k_in_s2 = (k >= c2s[kt][0]);
+
+            k_in_s1 = in_s1(k, c1s, nthreads, block);
+            k_in_s2 = in_s2(k, c2s, nthreads, block);
+            k_undef = in_undef(k_in_s1, k_in_s2);
         }
 
         if (j > k) {
             break;
         }
 
-        unsigned int jt = (j / block) % nthreads;
-        bool j_in_s1 = (j < c1s[jt][0]);
-        bool j_in_s2 = (j >= c2s[jt][0]);
+        assert(k_in_s1 || k_in_s2);
+        assert(i >= start);
+        assert(j >= start);
+        assert(j >= i);
+        assert(k > 0);
+        assert(k < end);
+
+        bool j_in_s1 = in_s1(j, c1s, nthreads, block);
+        bool j_in_s2 = in_s2(j, c2s, nthreads, block);
+        assert(!(j_in_s1 && j_in_s2));
 
         if (j_in_s1) {
             // Swap P[i] and P[j]
@@ -872,7 +897,7 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
             j += 1;
         } else if (j_in_s2) {
             j += 1;
-        } else {
+        } else /* j is neither in s1 nor in s2 */ {
             if (k_in_s1) {
                 // P[j] = P[i]
                 P.x[j] = P.x[i];
@@ -883,7 +908,9 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
 
                 i += 1;
                 j += 1;
-            } else {
+            } else /* k is in s2 */ {
+                assert(k_in_s2);
+
                 // P[j] = P[k]
                 P.x[j] = P.x[k];
                 P.y[j] = P.y[k];
@@ -900,11 +927,11 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
         }
     }
 
-    printf("i = %zu, j = %zu\n", i, j);
+    //printf("i = %zu, j = %zu\n", i, j);
 
     assert(i >= 0);
     assert(j >= i);
-    assert(k == j - 1);
+    assert((j == 0 && k == 0) ^ (k == j - 1));
 
     *i_out = i;
     *j_out = j;
@@ -949,8 +976,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-        printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
-               me, me * block, c1, c2, total1, total2);
+        //printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
+        //       me, me * block, c1, c2, total1, total2);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -990,9 +1017,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     size_t c1 = total1;
     size_t c2 = n - total2;
-    printf("c1     = %zu; c2     = %zu\n", c1, c2);
-    printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
-    printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
+    //printf("c1     = %zu; c2     = %zu\n", c1, c2);
+    //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
+    //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
 
     if (c1_max >= c2_min) {
         /**
@@ -1012,6 +1039,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | S1   | S2 | undef | S2   | ... |
          * 0    c1_min i    j       c2_max n     n+n_end
          *
+         * Namely:
+         * - P[0, i) in S1
+         * - P[i, j) in S2
+         * - P[j, c2_max) undef
+         *
          * We move [i, j) to [c2_max - (j - i), c2_max)
          */
         if (j > i) {
@@ -1028,7 +1060,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         assert(c1 == i);
         assert(c2 == c2_max - (j - i));
-    } else /* c1_max <= c2_min */ {
+    } else /* c1_max < c2_min */ {
         /**
          * P now looks like:
          *
@@ -1102,8 +1134,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
          */
         assert(c1 == i1 + (i2 - c2_min));
-        // TODO: why does this check sometimes fail???
-        //assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
+        assert(c2 == c2_max - (j2 - i2) - (j1 - i1));
     }
 
     /**
@@ -1127,7 +1158,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             r2 = r2_left_over;
         }
 
-        printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
+        //printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
 
         /**
          * P now looks like:
@@ -1167,7 +1198,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2 = n + n_end - (n - c2) - c2_left_over;
     }
 
-    printf("S1: [0, %zu), S2: [%zu, %zu)\n", c1, c2, n + n_end);
+    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", c1, c2, n + n_end);
     *c1_out = c1;
     *c2_out = c2;
     *r1_out = r1;

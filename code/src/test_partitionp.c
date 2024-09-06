@@ -60,7 +60,11 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     for (size_t i = c2; i < n; i++) {
         Point u = {P2.x[i], P2.y[i]};
         if (!(orient(r, u, q) > 0)) {
-            printf("Error at S2 (%zu)\n", i);
+            printf("Error at S2 (%zu)", i);
+            if (orient(p, u, r) > 0) {
+                printf(", however it is also in S1");
+            }
+            printf("\n");
             success = false;
         }
     }

@@ -29,6 +29,10 @@ make
 check()
 {
     name="$1"
+
+    echo ""
+    echo "=============== $name ==============="
+
     ./code/bin/test_quickhull_par p < data/"$name".in > data/"$name".quickhull.out
     ./pbbsbench/benchmarks/convexHull/serialHull/hull  \
                 -o data/"$name".pbbs_serial_indices.out \
@@ -37,8 +41,10 @@ check()
             data/"$name".pbbs_serial_indices.out > \
             data/"$name".pbbs_serial.out
     if diff data/"$name".pbbs_serial.out data/"$name".quickhull.out; then
-        printf 'Same result as pbbs on %s\n', "$name"
+        echo "Same result as pbbs on $name"
     fi
+
+    echo "=============== $name ==============="
 }
 
 check disk_"$n"
