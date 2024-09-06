@@ -4,7 +4,7 @@ include config.mk
 
 .PHONY: all clean
 
-all: bin/leftright_test bin/test_partition bin/test_partitionp bin/test_quickhull bin/index2points bin/text2bin bin/test_quickhull_par
+all: bin/leftright_test bin/test_partition bin/test_partitionp bin/test_quickhull bin/index2points bin/text2bin bin/test_quickhull_par bin/precision
 
 bin/common.o: src/common.cpp src/common.h
 	$(CXX) $(FLAGS) -c $< -o $@ $(LFLAGS)
@@ -25,6 +25,9 @@ bin/test_quickhull: src/test_quickhull.c bin/quickhull.o bin/common.o
 	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
 
 bin/test_quickhull_par: src/test_quickhull_par.c bin/quickhull.o bin/common.o
+	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
+
+bin/precision: src/precision.c bin/quickhull.o bin/common.o
 	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
 
 bin/index2points: src/index2points.c
