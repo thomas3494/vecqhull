@@ -1166,7 +1166,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             r2 = r2_left_over;
         }
 
-        //printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
+        printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
 
         /**
          * P now looks like:

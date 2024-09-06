@@ -13,6 +13,8 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     Point r1, r2;
     size_t c1, c2;
 
+    printf("\n========== Sequential ==========\n");
+
     double time3 = wtime();
     TriPartitionV(n, P, p, r, q, &r1, &r2, &c1, &c2);
     double time4 = wtime();
@@ -26,7 +28,9 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
     printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1.x, r1.y, r2.x, r2.y);
-    printf("%zu total, c1 = %zu, c2 = %zu\n", n, c1, c2);
+    printf("c1 = %zu, c2 = %zu\n", c1, c2);
+
+    printf("\n========== Parallel ==========\n");
 
     unsigned int nthreads;
     #pragma omp parallel master
@@ -46,13 +50,13 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
             14.0 * n / 1e9 / duration,
             2.0 * sizeof(Point) * n / 1e9 / duration);
     printf("r1 = (%e, %e), r2 = (%e, %e)\n", r1.x, r1.y, r2.x, r2.y);
-    printf("%zu total, c1 = %zu, c2 = %zu\n", n, c1, c2);
+    printf("c1 = %zu, c2 = %zu\n", c1, c2);
 
     bool success = true;
     for (size_t i = 0; i < c1; i++) {
         Point u = {P2.x[i], P2.y[i]};
         if (!(orient(p, u, r) > 0)) {
-            printf("Error at S1 (%zu)\n", i);
+            printf("Error at S1 (%zu not in S1)\n", i);
             success = false;
         }
     }
@@ -60,11 +64,12 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     for (size_t i = c2; i < n; i++) {
         Point u = {P2.x[i], P2.y[i]};
         if (!(orient(r, u, q) > 0)) {
-            printf("Error at S2 (%zu)", i);
-            if (orient(p, u, r) > 0) {
-                printf(", however it is also in S1");
-            }
-            printf("\n");
+            printf("Error at S2 (%zu not in S2)\n", i);
+            success = false;
+        }
+
+        if (orient(p, u, r) > 0) {
+            printf("Error at S2 (%zu already in S1)\n", i);
             success = false;
         }
     }
