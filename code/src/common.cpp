@@ -816,10 +816,35 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
             k_undef = in_undef(k_in_s1, k_in_s2);
         }
 
-        if (j > k) {
-            /**
-             * TODO: is there some remaining work we have to do here?
-             */
+        // P[k] can only be undefined if we reached the end
+        assert(k_undef == ((k < j) || (k == 0)));
+
+        /**
+         * Is there some remaining work we have to do here?
+         * Usually not, in the typical case where k > 0 we have 3 cases:
+         * - i <   k      == (j - 1)
+         * - i ==  k      == (j - 1)
+         * - k == (i - 1) == (j - 1)
+         *
+         * In all cases, i points to the element after the last S1. Namely,
+         * the first S2 in the first two cases, and undef in the third case
+         *
+         * In all cases, j points to the element after the last S2.
+         * Which is undef in all three cases
+         *
+         * However it is possible that k == 0, leading to the following cases:
+         * - 0 == k ==  i      == (j - 1)
+         * - 0 == k == (i - 1) == (j - 1)
+         * - 0 == k == i == j
+         *
+         * In the first two cases, i and j will be set correctly, as before.
+         * However if i == j == 0, then it might be that P[0] is actually in
+         * S1 or S2, but we have not checked it yet.
+         *
+         * Therefore we only break if j > k, or if P[0] is also in undef,
+         * ensuring that we do one final iteration in this edge case.
+         */
+        if (j > k || k_undef) {
             break;
         }
 
@@ -878,7 +903,6 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
     }
 
     //printf("i = %zu, j = %zu\n", i, j);
-
     assert(i >= 0);
     assert(j >= i);
     assert((j == 0 && k == 0) ^ (k == j - 1));
