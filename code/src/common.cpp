@@ -982,6 +982,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_max = max(c2_max, c2s[t][0]);
     }
 
+    //printf("n = %zu; n_end = %zu\n", n, n_end);
+    //printf("total1 = %zu; total2 = %zu\n", total1, total2);
     //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
     //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
     assert(c1_min <= c1_max);
@@ -1108,10 +1110,10 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        if (/*(c1_left_over > 0) &&*/ (orient(p, r1_left_over, r) > orient(p, r1, r))) {
+        if ((c1_left_over > 0) && (orient(p, r1_left_over, r) > orient(p, r1, r))) {
             r1 = r1_left_over;
         }
-        if (/*(c2_left_over < n_end) &&*/ (orient(r, r2_left_over, q) > orient(r, r2, q))) {
+        if ((c2_left_over < n_end) && (orient(r, r2_left_over, q) > orient(r, r2, q))) {
             r2 = r2_left_over;
         }
 
@@ -1146,10 +1148,10 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
 
         total1 += c1_left_over;
-        total2 += c2_left_over;
+        total2 += n_end - c2_left_over;
     }
 
-    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n - total2, n + n_end);
+    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n + n_end - total2, n + n_end);
     *c1_out = total1;
     *c2_out = n + n_end - total2;
     *r1_out = r1;
