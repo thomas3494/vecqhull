@@ -1201,9 +1201,10 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             // Move [c2,n) to [n+n_end-c2_left_over-(n-c2),n+n_end-c2_left_over)
             size_t len = n - c2;
             src = c2;
-            dest = n + n_end - c2_left_over - len;
-            memmove(P.x + src, P.x + dest, len * sizeof(double));
-            memmove(P.y + src, P.y + dest, len * sizeof(double));
+            //dest = n + n_end - c2_left_over - len;
+            dest = c2 - c2_left_over + n_end;
+            memmove(P.x + dest, P.x + src, len * sizeof(double));
+            memmove(P.y + dest, P.y + src, len * sizeof(double));
         }
 
         if (c1_left_over > 0) {
@@ -1216,7 +1217,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         }
 
         c1 += c1_left_over;
-        c2 = n + n_end - (n - c2) - c2_left_over;
+        //c2 = n + n_end - (n - c2) - c2_left_over;
+        c2 = c2 - c2_left_over + n_end;
     }
 
     //printf("S1: [0, %zu), S2: [%zu, %zu)\n", c1, c2, n + n_end);
