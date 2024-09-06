@@ -888,8 +888,10 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
             // Swap P[i] and P[j]
             double swap_x = P.x[j];
             double swap_y = P.y[j];
+            // P[j] = P[i]
             P.x[j] = P.x[i];
             P.y[j] = P.y[i];
+            // P[i] = P[j]
             P.x[i] = swap_x;
             P.y[i] = swap_y;
 
@@ -898,13 +900,18 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
         } else if (j_in_s2) {
             j += 1;
         } else /* j is neither in s1 nor in s2 */ {
+            assert(!j_in_s1 && !j_in_s2);
+
             if (k_in_s1) {
+                // We might have j == k, so we need a swap
+                double swap_x = P.x[k];
+                double swap_y = P.y[k];
                 // P[j] = P[i]
                 P.x[j] = P.x[i];
                 P.y[j] = P.y[i];
                 // P[i] = P[k]
-                P.x[i] = P.x[k];
-                P.y[i] = P.y[k];
+                P.x[i] = swap_x;
+                P.y[i] = swap_y;
 
                 i += 1;
                 j += 1;
