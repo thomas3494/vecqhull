@@ -1111,9 +1111,13 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &c1_left_over, &c2_left_over);
 
         if ((c1_left_over > 0) && (orient(p, r1_left_over, r) > orient(p, r1, r))) {
+            printf("Update R1 from (%e, %e) to (%e, %e)\n",
+                   r1.x, r1.y, r1_left_over.x, r1_left_over.y);
             r1 = r1_left_over;
         }
         if ((c2_left_over < n_end) && (orient(r, r2_left_over, q) > orient(r, r2, q))) {
+            printf("Update R2 from (%e, %e) to (%e, %e)\n",
+                   r2.x, r2.y, r2_left_over.x, r2_left_over.y);
             r2 = r2_left_over;
         }
 
