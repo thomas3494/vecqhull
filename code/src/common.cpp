@@ -90,6 +90,13 @@ Points input_b(size_t *n /* out param */)
     return P;
 }
 
+double wtime(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)(tv.tv_usec / 1e6 + tv.tv_sec);
+}
+
 void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out)
 {
     size_t left = 0;
@@ -568,59 +575,6 @@ size_t Blockcyc_Dist(size_t k1, size_t j1,
 }
 
 /**
- * Copies from block cyclic array src, indices k2 + j2 to k1 + j1,
- * to dense dest. Returns the number of elements copied.
- **/
-//static inline
-//size_t Blockcyc_Copy_From(double *dest, double *src,
-//                          size_t k1, size_t j1,
-//                          size_t k2, size_t j2,
-//                          size_t block,
-//                          unsigned int nthreads)
-//{
-//    if (k1 == k2) {
-//        memcpy(dest, src + k2 + j2, (j1 - j2) * sizeof(double));
-//        return j1 - j2;
-//    } else {
-//        /* Copy to the end of the k2 block */
-//        size_t copy_count = 0;
-//        memcpy(dest + copy_count, src + k2 + j2, (block - j2) * sizeof(double));
-//        copy_count += block - j2;
-//        k2 += nthreads * block;
-//        for (; k2 < k1; k2 += nthreads * block) {
-//            memcpy(dest + copy_count, src + k2, block * sizeof(double));
-//            copy_count += block;
-//        }
-//        memcpy(dest + copy_count, src + k2, j1 * sizeof(double));
-//        copy_count += j1;
-//        return copy_count;
-//    }
-//}
-
-/**
- * Copies from dense array src to block cyclic array src, starting at k + j.
- **/
-//static inline
-//void Blockcyc_Copy_To(double *dest, double *src, size_t count,
-//                      size_t k, size_t j,
-//                      size_t block, unsigned int nthreads)
-//{
-//    size_t copy_count = 0;
-//    memcpy(dest + k + j, src + copy_count,
-//            min(block - j, count) * sizeof(double));
-//    copy_count += min(block - j, count);
-//    k += block * nthreads;
-//    while (copy_count + block <= count) {
-//        memcpy(dest + k, src + copy_count, block * sizeof(double));
-//        copy_count += block;
-//        k += block * nthreads;
-//    }
-//    /* copy_count + block > count iff count - copy_count < block */
-//    memcpy(dest + k, src + copy_count, (count - copy_count) * sizeof(double));
-//    copy_count += count - copy_count;
-//}
-
-/**
  * Finds the 'supremum' of i in the subarray belonging to thread t.
  * That is, the smallest number greater or equal to i in
  * t's subarray. We assume this exists, so i >= t * block
@@ -880,15 +834,7 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
 
         if (j_in_s1) {
             // Swap P[i] and P[j]
-            double swap_x = P.x[j];
-            double swap_y = P.y[j];
-            // P[j] = P[i]
-            P.x[j] = P.x[i];
-            P.y[j] = P.y[i];
-            // P[i] = P[j]
-            P.x[i] = swap_x;
-            P.y[i] = swap_y;
-
+            swap(P, i, j);
             i += 1;
             j += 1;
         } else if (j_in_s2) {
@@ -1219,11 +1165,4 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     *c2_out = c2;
     *r1_out = r1;
     *r2_out = r2;
-}
-
-double wtime(void)
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)(tv.tv_usec / 1e6 + tv.tv_sec);
 }

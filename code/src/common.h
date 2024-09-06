@@ -17,14 +17,12 @@ Points input(size_t *n /* out */);
 /* Binary on stdin */
 Points input_b(size_t *n /* out */);
 
+/* Wallclock time in seconds */
+double wtime(void);
+
 inline size_t ceildiv(size_t a, size_t b)
 {
     return (a + b - 1) / b;
-}
-
-inline size_t roundDown(size_t a, size_t b)
-{
-    return a / b * b;
 }
 
 inline size_t max(size_t a, size_t b)
@@ -84,8 +82,5 @@ void TriPartitionV(size_t n, Points P, Point p, Point u, Point q,
 void TriPartitionP(size_t n, Points P, Point p, Point u, Point q,
                    Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out, unsigned int nthreads);
-
-/* Wallclock time in seconds */
-double wtime(void);
 
 #endif /* QUICKHULL_GUARD */

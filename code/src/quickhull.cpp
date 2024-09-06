@@ -144,7 +144,6 @@ size_t QuickhullP(size_t n, Points P)
     size_t c1, c2;
     Points S1 = {P.x + 1, P.y + 1};
     TriPartitionP(n - 2, S1, p, q, p, &r1, &r2, &c1, &c2, nthreads);
-//    TriPartitionV(n - 2, S1, p, q, p, &r1, &r2, &c1, &c2);
     size_t total1 = c1;
     size_t total2 = n - 2 - c2;
     Points S2 = {S1.x + c2, S1.y + c2};
@@ -191,7 +190,6 @@ size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
     Point r1, r2;
     size_t c1, c2;
     TriPartitionP(n, P, p, r, q, &r1, &r2, &c1, &c2, nthreads);
-//    TriPartitionV(n, P, p, r, q, &r1, &r2, &c1, &c2);
     size_t total1 = c1;
     size_t total2 = n - c2;
 
