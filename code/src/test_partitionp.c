@@ -10,6 +10,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out, size_t *c1_out,
                    size_t *c2_out)
 {
+    if (n <= 1) return;
     Point r1_seq, r2_seq;
     Point r1_par, r2_par;
     size_t c1_seq, c2_seq;
@@ -85,7 +86,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     }
 
     if (!s2_is_empty && (r2_seq.x != r2_par.x || r2_seq.y != r2_par.y)) {
-        printf("R1 not equal\n");
+        printf("R2 not equal\n");
         success = false;
     }
 
@@ -138,17 +139,17 @@ int main(int argc, char **argv)
 
     TestPartition(n, P, P2, p, q, p, &r1, &r2, &c1, &c2);
 
-//    printf("Partition left\n");
-//    size_t c1l, c2l;
-//    Point r1l, r2l;
-//    TestPartition(c1, P, P2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
-//
-//    printf("Partition right\n");
-//    Points S2 = {P.x + c2, P.y + c2};
-//    Points S22 = {P2.x + c2, P2.y + c2};
-//    size_t c1r, c2r;
-//    Point r1r, r2r;
-//    TestPartition(n - c2, S2, S22, q, r2, p, &r1r, &r2r, &c1r, &c2r);
+    printf("Partition left\n");
+    size_t c1l, c2l;
+    Point r1l, r2l;
+    TestPartition(c1, P, P2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
+
+    printf("Partition right\n");
+    Points S2 = {P.x + c2, P.y + c2};
+    Points S22 = {P2.x + c2, P2.y + c2};
+    size_t c1r, c2r;
+    Point r1r, r2r;
+    TestPartition(n - c2, S2, S22, q, r2, p, &r1r, &r2r, &c1r, &c2r);
 
     free(P.x);
     free(P.y);
