@@ -76,12 +76,15 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
         }
     }
 
-    if (r1_seq.x != r1_par.x || r1_seq.y != r1_par.y) {
+    bool s1_is_empty = (c1_seq == 0);
+    bool s2_is_empty = (c2_seq == n - 2);
+
+    if (!s1_is_empty && (r1_seq.x != r1_par.x || r1_seq.y != r1_par.y)) {
         printf("R1 not equal\n");
         success = false;
     }
 
-    if (r2_seq.x != r2_par.x || r2_seq.y != r2_par.y) {
+    if (!s2_is_empty && (r2_seq.x != r2_par.x || r2_seq.y != r2_par.y)) {
         printf("R1 not equal\n");
         success = false;
     }
