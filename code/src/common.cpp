@@ -908,34 +908,41 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
     *j_out = j;
 }
 
-static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
+static void MovePointsLocal(size_t n, Points P, size_t src, size_t dest, size_t len)
 {
-    if (len > 0 && dest != src) {
-        memmove(P.x + dest, P.x + src, len * sizeof(double));
-        memmove(P.y + dest, P.y + src, len * sizeof(double));
-    }
+    assert(len > 0);
+    assert(len < n);
+    assert(src + len <= n);
+    assert(dest + len <= n);
+
+    memmove(P.x + dest, P.x + src, len * sizeof(double));
+    memmove(P.y + dest, P.y + src, len * sizeof(double));
 }
 
-static void CopyPointsToBuffer(Points P, size_t src, size_t len,
+static void CopyPointsToBuffer(size_t n, Points P, size_t src, size_t len,
                                double **buf_x, double **buf_y)
 {
-    if (len > 0) {
-        *buf_x = (double *)malloc(len * sizeof(double));
-        *buf_y = (double *)malloc(len * sizeof(double));
-        memcpy(*buf_x, P.x + src, len * sizeof(double));
-        memcpy(*buf_y, P.y + src, len * sizeof(double));
-    }
+    assert(len > 0);
+    assert(len <= n);
+    assert(src + len <= n);
+
+    *buf_x = (double *)malloc(len * sizeof(double));
+    *buf_y = (double *)malloc(len * sizeof(double));
+    memcpy(*buf_x, P.x + src, len * sizeof(double));
+    memcpy(*buf_y, P.y + src, len * sizeof(double));
 }
 
-static void CopyPointsFromBuffer(Points P, size_t dest, size_t len,
+static void CopyPointsFromBuffer(size_t n, Points P, size_t dest, size_t len,
                                  double **buf_x, double **buf_y)
 {
-    if (len > 0) {
-        memcpy(P.x + dest, *buf_x, len * sizeof(double));
-        memcpy(P.y + dest, *buf_y, len * sizeof(double));
-        free(*buf_x);
-        free(*buf_y);
-    }
+    assert(len > 0);
+    assert(len <= n);
+    assert(dest + len <= n);
+
+    memcpy(P.x + dest, *buf_x, len * sizeof(double));
+    memcpy(P.y + dest, *buf_y, len * sizeof(double));
+    free(*buf_x);
+    free(*buf_y);
 }
 
 /**
@@ -1043,7 +1050,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         size_t i, j;
         dnf(P, c1s, c2s, nthreads, block, c1_min, c2_max, &i, &j);
-        size_t len = j - i;
 
         /**
          * P now looks like:
@@ -1058,7 +1064,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          *
          * We move [i, j) to [c2_max - (j - i), c2_max)
          */
-        MovePointsLocal(P, i, c2_max - len, len);
+        if (j > i) {
+            MovePointsLocal(n, P, i, c2_max - (j - i), j - i);
+        }
 
         /**
          * P now looks like:
@@ -1067,7 +1075,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
          */
         assert(total1 == i);
-        assert(n - total2 == c2_max - len);
+        assert(n - total2 == c2_max - (j - i));
     } else /* c1_max < c2_min */ {
         /**
          * P now looks like:
@@ -1081,7 +1089,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         size_t i1, j1;
         dnf(P, c1s, c2s, nthreads, block, c1_min, c1_max, &i1, &j1);
-        size_t len1 = j1 - i1;
 
         /**
          * P now looks like:
@@ -1090,11 +1097,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * 0    c1_min i1   j1      c1_max  c2_min c2_max n     n+n_end
          */
         size_t i2, j2;
-        assert(c2_max <= n);
-        assert(c2_min < n);
-        assert(c2_min <= c2_max);
         dnf(P, c1s, c2s, nthreads, block, c2_min, c2_max, &i2, &j2);
-        size_t len2 = j2 - i2;
 
         /**
          * P now looks like:
@@ -1108,18 +1111,25 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * - Move buffer to [i1, i1 + (i2 - c2_min))
          */
         double *buf_x, *buf_y;
-        size_t buf_len = i2 - c2_min;
-        // Move [c2_min, i2) to buffer
-        CopyPointsToBuffer(P, c2_min, buf_len, &buf_x, &buf_y);
+        if (i2 > c2_min) {
+            // Move [c2_min, i2) to buffer
+            CopyPointsToBuffer(n, P, c2_min, i2 - c2_min, &buf_x, &buf_y);
+        }
 
-        // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
-        MovePointsLocal(P, i2, c2_max - len2, len2);
+        if (j2 > i2) {
+            // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
+            MovePointsLocal(n, P, i2, c2_max - (j2 - i2), j2 - i2);
+        }
 
-        // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
-        MovePointsLocal(P, i1, c2_max - len2 - len1, len1);
+        if (j1 > i1) {
+            // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
+            MovePointsLocal(n, P, i1, c2_max - (j2 - i2) - (j1 - i1), j1 - i1);
+        }
 
-        // Move buffer to [i1, i1 + (i2 - c2_min))
-        CopyPointsFromBuffer(P, i1, buf_len, &buf_x, &buf_y);
+        if (i2 > c2_min) {
+            // Move buffer to [i1, i1 + (i2 - c2_min))
+            CopyPointsFromBuffer(n, P, i1, i2 - c2_min, &buf_x, &buf_y);
+        }
 
         /**
          * P now looks like:
@@ -1127,8 +1137,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | undef        | S2                   | ... |
          * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
          */
-        assert(total1 == i1 + buf_len);
-        assert(n - total2 == c2_max - len2 - len1);
+        assert(total1 == i1 + (i2 - c2_min));
+        assert(n - total2 == c2_max - (j2 - i2) - (j1 - i1));
     }
 
     /**
@@ -1171,22 +1181,28 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * - Move buffer to [total1,total1+c1_left_over)
          */
         double *buf_x, *buf_y;
-        // Move [n,n+c1_left_over) to buffer
-        CopyPointsToBuffer(P, n, c1_left_over, &buf_x, &buf_y);
+        if (c1_left_over > 0) {
+            // Move [n,n+c1_left_over) to buffer
+            CopyPointsToBuffer(n + n_end, P, n, c1_left_over, &buf_x, &buf_y);
+        }
 
-        // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
-        MovePointsLocal(P, n - total2, n + c2_left_over - total2, total2);
+        if (c2_left_over > 0 && total2 > 0) {
+            // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
+            MovePointsLocal(n + n_end, P, n - total2, n + c2_left_over - total2, total2);
+        }
 
-        // Move buffer to [total1,total1+c1_left_over)
-        CopyPointsFromBuffer(P, total1, c1_left_over, &buf_x, &buf_y);
+        if (c1_left_over > 0) {
+            // Move buffer to [total1,total1+c1_left_over)
+            CopyPointsFromBuffer(n + n_end, P, total1, c1_left_over, &buf_x, &buf_y);
+        }
 
         total1 += c1_left_over;
-        total2 += n_end - c2_left_over;
+        total2 += (n_end - c2_left_over);
     }
 
     //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n + n_end - total2, n + n_end);
     *c1_out = total1;
-    *c2_out = n + n_end - total2;
+    *c2_out = (n + n_end) - total2;
     *r1_out = r1;
     *r2_out = r2;
 }
