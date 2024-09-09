@@ -572,7 +572,7 @@ size_t Blockcyc_Dist(size_t k1, size_t j1,
 {
     assert(k1 >= k2);
     assert((k1 - k2) / nthreads + j1 >= j2);
-    //assert(k1 + j1 > k2 + j2);
+    assert(k1 + j1 >= k2 + j2);
     return (k1 - k2) / nthreads + j1 - j2;
 }
 
