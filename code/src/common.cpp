@@ -882,6 +882,8 @@ static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
                 assert(k_in_s2);
 
                 // P[j] = P[k]
+                assert(j < end);
+                assert(k < end);
                 P.x[j] = P.x[k];
                 P.y[j] = P.y[k];
 
@@ -975,8 +977,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-        //printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
-        //       me, me * block, c1, c2, total1, total2);
+        printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
+               me, me * block, c1, c2, total1, total2);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -1009,6 +1011,17 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_min = min(c2_min, c2s[t][0]);
         c2_max = max(c2_max, c2s[t][0]);
     }
+    /** 
+     * When working with index sets, say I = {0, ..., n - 1}, we usually
+     * do not use the upper bound n - 1, but the smallest strict upper
+     * bound n. This is not in I.
+     *
+     * We have extended this to the block-cyclic subsets I_t. So c2s[t][0]
+     * is the smallest strict upper bound ub such that 
+     *   ub / block % nthreads == t.
+     * This can be strictly larger than n.
+     **/
+    c2_max = min(c2_max, n);
 
     //printf("n = %zu; n_end = %zu\n", n, n_end);
     //printf("total1 = %zu; total2 = %zu\n", total1, total2);
@@ -1076,6 +1089,12 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * 0    c1_min i1   j1      c1_max  c2_min c2_max n     n+n_end
          */
         size_t i2, j2;
+        if (!(c2_max < n)) {
+            printf("c2_max = %zu\n", c2_max);
+            abort();
+        }
+        assert(c2_min < n);
+        assert(c2_min <= c2_max);
         dnf(P, c1s, c2s, nthreads, block, c2_min, c2_max, &i2, &j2);
         size_t len2 = j2 - i2;
 
