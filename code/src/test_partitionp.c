@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdbool>
@@ -6,26 +7,25 @@
 
 #include "common.h"
 
-void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
+void TestPartition(size_t n, Points P1, Points P2, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out, size_t *c1_out,
                    size_t *c2_out)
 {
-    if (n <= 1) return;
-    Point r1_seq, r2_seq;
-    Point r1_par, r2_par;
-    size_t c1_seq, c2_seq;
-    size_t c1_par, c2_par;
+    assert(n > 1);
+
+    Point r1_seq, r2_seq, r1_par, r2_par;
+    size_t c1_seq, c2_seq, c1_par, c2_par;
 
     printf("\n========== Sequential ==========\n");
 
-    double time3 = wtime();
-    TriPartitionV(n, P, p, r, q, &r1_seq, &r2_seq, &c1_seq, &c2_seq);
-    double time4 = wtime();
+    double time1 = wtime();
+    TriPartitionV(n, P1, p, r, q, &r1_seq, &r2_seq, &c1_seq, &c2_seq);
+    double time2 = wtime();
 
-    //Points S2 = {P.x + c2, P.y + c2};
+    //Points S2 = {P1.x + c2, P1.y + c2};
     //PrintPoints(n - c2, S2);
 
-    double duration = time4 - time3;
+    double duration = time2 - time1;
     printf("Sequential took %lf ms, or %lf gflops or %lf GB/s\n",
             duration * 1e3,
             14.0 * n / 1e9 / duration,
@@ -40,14 +40,15 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
     {
         nthreads = omp_get_num_threads();
     }
-    time3 = wtime();
+
+    time1 = wtime();
     TriPartitionP(n, P2, p, r, q, &r1_par, &r2_par, &c1_par, &c2_par, nthreads);
-    time4 = wtime();
+    time2 = wtime();
 
-//    Points S2 = {P2.x + c2, P2.y + c2};
-//    PrintPoints(n - c2, S2);
+    //Points S2 = {P2.x + c2, P2.y + c2};
+    //PrintPoints(n - c2, S2);
 
-    duration = time4 - time3;
+    duration = time2 - time1;
     printf("Parallel took %lf ms, or %lf gflops or %lf GB/s\n",
             duration * 1e3,
             14.0 * n / 1e9 / duration,
@@ -100,7 +101,7 @@ void TestPartition(size_t n, Points P, Points P2, Point p, Point r, Point q,
         success = false;
     }
 
-    printf("Partition was %ssuccesfull\n", (success) ? "" : "un");
+    printf("Partition was %ssuccesfull\n\n", (success) ? "" : "un");
 
     *r1_out = r1_par;
     *r2_out = r2_par;
@@ -115,44 +116,57 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    size_t n;
-    Points P = input_b(&n);
-    Points P2;
-    P2.x = (double *)aligned_alloc(64, (n * sizeof(double) + 63) / 64 * 64);
-    P2.y = (double *)aligned_alloc(64, (n * sizeof(double) + 63) / 64 * 64);
-    memcpy(P2.x, P.x, n * sizeof(double));
-    memcpy(P2.y, P.y, n * sizeof(double));
+    size_t n, left, right;
+    Points P1 = input_b(&n);
 
     double time1 = wtime();
-
-    size_t left, right;
-    FindLeftRightV(n, P, &left, &right);
-    Point p = {P.x[left],  P.y[left]};
-    Point q = {P.x[right], P.y[right]};
-
+    FindLeftRightV(n, P1, &left, &right);
     double time2 = wtime();
+
+    Point p = {P1.x[left],  P1.y[left]};
+    Point q = {P1.x[right], P1.y[right]};
+
     printf("Finding left and right took %lf ms\n", (time2 - time1) * 1e3);
     printf("p = (%e, %e), q = (%e, %e)\n", p.x, p.y, q.x, q.y);
 
+    if (right != 0) {
+        swap(P1, 0, left);
+        swap(P1, n - 1, right);
+    } else {
+        swap(P1, n - 1, right);
+        swap(P1, 0, left);
+    }
+
+    Points P2;
+    P2.x = (double *)aligned_alloc(64, (n * sizeof(double) + 63) / 64 * 64);
+    P2.y = (double *)aligned_alloc(64, (n * sizeof(double) + 63) / 64 * 64);
+    memcpy(P2.x, P1.x, n * sizeof(double));
+    memcpy(P2.y, P1.y, n * sizeof(double));
+
+    printf("Partition:\n");
     Point r1, r2;
     size_t c1, c2;
+    Points S1_1 = {P1.x + 1, P1.y + 1};
+    Points S1_2 = {P2.x + 1, P2.y + 1};
+    TestPartition(n - 2, S1_1, S1_2, p, q, p, &r1, &r2, &c1, &c2);
 
-    TestPartition(n, P, P2, p, q, p, &r1, &r2, &c1, &c2);
+    size_t total1 = c1;
+    size_t total2 = n - 2 - c2;
 
-    printf("Partition left\n");
-    size_t c1l, c2l;
+    printf("Partition left:\n");
     Point r1l, r2l;
-    TestPartition(c1, P, P2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
+    size_t c1l, c2l;
+    TestPartition(total1, S1_1, S1_2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
 
-    printf("Partition right\n");
-    Points S2 = {P.x + c2, P.y + c2};
-    Points S22 = {P2.x + c2, P2.y + c2};
-    size_t c1r, c2r;
+    printf("Partition right:\n");
     Point r1r, r2r;
-    TestPartition(n - c2, S2, S22, q, r2, p, &r1r, &r2r, &c1r, &c2r);
+    size_t c1r, c2r;
+    Points S2_1 = {S1_1.x + c2, S1_1.y + c2};
+    Points S2_2 = {S1_2.x + c2, S1_2.y + c2};
+    TestPartition(total2, S2_1, S2_2, q, r2, p, &r1r, &r2r, &c1r, &c2r);
 
-    free(P.x);
-    free(P.y);
+    free(P1.x);
+    free(P1.y);
     free(P2.x);
     free(P2.y);
 

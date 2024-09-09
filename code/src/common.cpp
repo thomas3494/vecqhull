@@ -1030,6 +1030,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     assert(c1_min <= c1_max);
     assert(c2_min <= c2_max);
     assert(c1_min < c2_max);
+    assert(c2_max <= n);
 
     if (c1_max >= c2_min) {
         /**
