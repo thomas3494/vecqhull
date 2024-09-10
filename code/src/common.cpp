@@ -683,6 +683,8 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
+    omax1 = Set(d, -DBL_MAX);
+    omax2 = Set(d, -DBL_MAX);
 
     size_t writeLk = start;
     size_t writeLj = 0;
@@ -898,8 +900,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                me * block, block, nthreads);
 
-        //printf("Thread %2u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n",
-        //       me, me * block, c1, c2, total1, total2);
+//        printf("Thread %u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n"
+//               "r1 = (%e, %e), r2 = (%e, %e)\n",
+//               me, me * block, c1, c2, total1, total2, r1.x, r1.y, r2.x, r2.y);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -933,6 +936,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total1 += total1s[t][0];
         total2 += total2s[t][0];
 
+        /* Argmax over empty set is undefined */ 
         if ((total1s[t][0] != 0) && 
                 orient(p, r1s[t][0], r) > orient(p, r1, r)) {
             r1 = r1s[t][0];
@@ -981,9 +985,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      */
     if (n_end > 0) {
 //        printf("Leftover:\n");
-//        Points O = {P.x + n, P.y + n};
-//        PrintPoints(n_end, O);
         Points LeftOver = {P.x + n, P.y + n};
+//        PrintPoints(n_end, LeftOver);
         Point  r1_left_over, r2_left_over;
         size_t c1_left_over, c2_left_over;
         TriPartitionV(n_end, LeftOver, p, r, q,
