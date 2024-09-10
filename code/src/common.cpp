@@ -611,18 +611,18 @@ void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
     }
 }
 
-/* writes do not seem disjoint */
-static inline void Blockcyc_TriLoopBody(Vecd px, Vecd py,
-                                        Vecd rx, Vecd ry,
-                                        Vecd qx, Vecd qy,
-                                        Vecd &omax1, Vecd &omax2,
-                                        Vecd &max1x, Vecd &max1y,
-                                        Vecd &max2x, Vecd &max2y,
-                                        Points P,
-                                        size_t &writeLk, size_t &writeLj,
-                                        size_t &writeRk, size_t &writeRj,
-                                        Vecd x_coor, Vecd y_coor,
-                                        size_t block, unsigned int nthreads)
+static __attribute__((always_inline)) inline void 
+Blockcyc_TriLoopBody(Vecd px, Vecd py,
+                     Vecd rx, Vecd ry,
+                     Vecd qx, Vecd qy,
+                     Vecd &omax1, Vecd &omax2,
+                     Vecd &max1x, Vecd &max1y,
+                     Vecd &max2x, Vecd &max2y,
+                     Points P,
+                     size_t &writeLk, size_t &writeLj,
+                     size_t &writeRk, size_t &writeRj,
+                     Vecd x_coor, Vecd y_coor,
+                     size_t block, unsigned int nthreads)
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
@@ -945,15 +945,28 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    unsigned int nthreads)
 {
     const ScalableTag<double> d;
+
+    uintptr_t points_per_cacheline = 64 / sizeof(double);
+    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) / 
+                                sizeof(double)) % points_per_cacheline;
+
+    n -= n_off;
+
     size_t n_end = n % Lanes(d);
     n -= n_end;
 
-    constexpr size_t block = 4096;
+    constexpr size_t block = 8192;
     if (nthreads <= 1 || n < block * nthreads) {
-        TriPartitionV(n + n_end, P, p, r, q,
+        TriPartitionV(n_off + n + n_end, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
         return;
     }
+
+    P.x += n_off;
+    P.y += n_off;
+
+    assert((uintptr_t)P.x % 64 == 0);
+    assert((uintptr_t)P.y % 64 == 0);
 
     /* Pad to avoid false sharing */
     size_t total1s[nthreads][8];
@@ -1124,10 +1137,39 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     n += n_end;
 
+    /* Insert the points cut off at the front */
+    if (n_off > 0) {
+        P.x -= n_off;
+        P.y -= n_off;
+        Point  r1_left_over, r2_left_over;
+        size_t c1_left_over, c2_left_over;
+        TriPartitionV(n_off, P, p, r, q,
+                      &r1_left_over, &r2_left_over,
+                      &c1_left_over, &c2_left_over);
+
+        if ((c1_left_over > 0) && 
+                (orient(p, r1_left_over, r) > orient(p, r1, r))) {
+            r1 = r1_left_over;
+        }
+        if ((c2_left_over < n_end) && 
+                (orient(r, r2_left_over, q) > orient(r, r2, q))) {
+            r2 = r2_left_over;
+        }
+
+        /**
+         * Situation
+         *    | S1 | undef | S2 | S1 | undef | S2 |
+         **/
+
+        total1 += c1_left_over;
+        total2 += (n_off - c2_left_over);
+    }
+
+    n += n_off;
+
     assert(total1 <= n - total2);
     *c1_out = total1;
     *c2_out = n - total2;
     *r1_out = r1;
     *r2_out = r2;
-
 }

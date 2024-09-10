@@ -117,6 +117,14 @@ size_t FindHull(size_t n, Points P, Point p, Point r, Point q)
 
 size_t QuickhullP(size_t n, Points P)
 {
+    size_t offset1 = (uintptr_t)P.x % 64;
+    size_t offset2 = (uintptr_t)P.y % 64;
+    if (offset1 != offset2) {
+        fprintf(stderr, "The address of P.x and P.y must be equal module 64\n"
+                        "You could use aligned_alloc(64, (n + 63) / 64 * 64 * sizeof(double))\n");
+        abort();
+    }
+
     unsigned int nthreads;
     #pragma omp parallel master
     {
