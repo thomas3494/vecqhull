@@ -163,8 +163,11 @@ size_t QuickhullP(size_t n, Points P)
     unsigned int threads2 = nthreads - threads1;
 
     size_t lcount, rcount;
-    if (threads1 == 0 || threads2 == 0) {
+    if (threads1 == 0) {
         lcount = FindHull(total1, S1, p, r1, q);
+        rcount = FindHullP(total2, S2, q, r2, p, threads2);
+    } else if (threads2 == 0) {
+        lcount = FindHullP(total1, S1, p, r1, q, threads1);
         rcount = FindHull(total2, S2, q, r2, p);
     } else {
         assert(total1 <= c2);
@@ -213,8 +216,11 @@ size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
     unsigned int threads2 = nthreads - threads1;
 
     size_t lcount, rcount;
-    if (threads1 == 0 || threads2 == 0) {
+    if (threads1 == 0) {
         lcount = FindHull(total1, S1, p, r1, r);
+        rcount = FindHullP(total2, S2, r, r2, q, threads2);
+    } else if (threads2 == 0) {
+        lcount = FindHullP(total1, S1, p, r1, r, threads1);
         rcount = FindHull(total2, S2, r, r2, q);
     } else {
         assert(total1 <= c2);
