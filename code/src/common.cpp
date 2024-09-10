@@ -919,11 +919,26 @@ static void CopyPointsFromBuffer(size_t n, Points P, size_t dest, size_t len,
     free(*buf_y);
 }
 
-/**
- * On the cluster it is better to use 8 threads instead of 16.
- *
- * The right-hand side is not correct
- **/
+/* Sets block-cyclic subset of P[start, end) to p. */
+void BlockCycSet(Points P, unsigned int t, size_t block, unsigned int nthreads,
+                 size_t start, size_t end, Point p)
+{
+    unsigned int start_t = (start / block) % nthreads;
+    /* If necessary, round up to first index in I_t */
+    size_t i = (start_t == t) ?
+                    start :
+                    t * block + ceildiv(start - t * block, nthreads * block) * 
+                                            nthreads * block;
+    while (i < end) {
+        P.x[i] = p.x;
+        P.y[i] = p.y;
+        i++;
+        if (i % block == 0) {
+            i += (nthreads - 1) * block;
+        }
+    }
+}
+
 void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out,
@@ -933,7 +948,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     size_t n_end = n % Lanes(d);
     n -= n_end;
 
-    constexpr size_t block = 8;
+    constexpr size_t block = 4096;
     if (nthreads <= 1 || n < block * nthreads) {
         TriPartitionV(n + n_end, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
@@ -975,19 +990,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         r1s[me][0]     = r1;
         r2s[me][0]     = r2;
 
-        /* Change undefined points to recognize them later on.
-         * For now we do it for all of them, but later we should optimise to
-         * [c1_min, c1_max[, [c2_min, c2_max[. */
-        size_t i = c1;
-        while (i < c2) {
-            P.x[i] = DBL_MAX;
-            P.y[i] = DBL_MAX;
-            i++;
-            if (i % block == 0) {
-                i += (nthreads - 1) * block;
-            }
-        }
-    }
+   }
 
     Point r1      = r1s[0][0];
     Point r2      = r2s[0][0];
@@ -1016,7 +1019,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_max = max(c2_max, c2s[t][0]);
     }
 
-    //printf("total1: %zu, total2: %zu, total: %zu, n: %zu\n", total1, total2, total1 + total2, n);
     assert(total1 + total2 <= n);
 
     /**
@@ -1039,6 +1041,18 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     assert(c1_min <= c2_max);
     assert(c2_max <= n);
 
+    /* Change undefined points to recognize them later on. */
+    #pragma omp parallel num_threads(nthreads)
+    {
+        unsigned int t = omp_get_thread_num();
+        size_t c1 = c1s[t][0];
+        size_t c2 = c2s[t][0];
+        BlockCycSet(P, t, block, nthreads, c1, min(c1_max, c2),
+                    {DBL_MAX, DBL_MAX});
+        BlockCycSet(P, t, block, nthreads, max(c2_min, c1), c2,
+                    {DBL_MAX, DBL_MAX});
+    } 
+
     size_t i, k;
 
     if (c1_max >= c2_min) {
@@ -1057,27 +1071,22 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      * 0    total1  n-total2 n     n+n_end
      */
     if (n_end > 0) {
-//        printf("Leftover:\n");
         Points LeftOver = {P.x + n, P.y + n};
-//        PrintPoints(n_end, LeftOver);
         Point  r1_left_over, r2_left_over;
         size_t c1_left_over, c2_left_over;
         TriPartitionV(n_end, LeftOver, p, r, q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        if ((c1_left_over > 0) && (orient(p, r1_left_over, r) > orient(p, r1, r))) {
-            //printf("Update R1 from (%e, %e) to (%e, %e)\n",
-            //       r1.x, r1.y, r1_left_over.x, r1_left_over.y);
+        if ((c1_left_over > 0) && 
+                (orient(p, r1_left_over, r) > orient(p, r1, r))) {
             r1 = r1_left_over;
         }
-        if ((c2_left_over < n_end) && (orient(r, r2_left_over, q) > orient(r, r2, q))) {
-            //printf("Update R2 from (%e, %e) to (%e, %e)\n",
-            //       r2.x, r2.y, r2_left_over.x, r2_left_over.y);
+        if ((c2_left_over < n_end) && 
+                (orient(r, r2_left_over, q) > orient(r, r2, q))) {
             r2 = r2_left_over;
         }
 
-        //printf("c1_left_over = %zu; c2_left_over = %zu; n_end = %zu\n", c1_left_over, c2_left_over, n_end);
         assert(c1_left_over <= c2_left_over);
         assert(c2_left_over <= n_end);
 
@@ -1093,18 +1102,20 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         double *buf_x, *buf_y;
         if (c1_left_over > 0) {
-            // Move [n,n+c1_left_over) to buffer
+            /* Move [n,n+c1_left_over) to buffer */
             CopyPointsToBuffer(n + n_end, P, n, c1_left_over, &buf_x, &buf_y);
         }
 
         if (c2_left_over > 0 && total2 > 0) {
-            // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
-            MovePointsLocal(n + n_end, P, n - total2, n + c2_left_over - total2, total2);
+            /* Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over) */
+            MovePointsLocal(n + n_end, P, n - total2, 
+                            n + c2_left_over - total2, total2);
         }
 
         if (c1_left_over > 0) {
-            // Move buffer to [total1,total1+c1_left_over)
-            CopyPointsFromBuffer(n + n_end, P, total1, c1_left_over, &buf_x, &buf_y);
+            /* Move buffer to [total1,total1+c1_left_over) */
+            CopyPointsFromBuffer(n + n_end, P, total1, c1_left_over, 
+                                 &buf_x, &buf_y);
         }
 
         total1 += c1_left_over;
@@ -1113,7 +1124,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
 
     n += n_end;
 
-    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n - total2, n);
     assert(total1 <= n - total2);
     *c1_out = total1;
     *c2_out = n - total2;
