@@ -802,22 +802,80 @@ static void dnf(Points P, size_t start, size_t end,
 
     while (j < k) {
         Point u = {P.x[j], P.y[j]};
+
         if (u.x == DBL_MAX) {
-            j++;
+            j += 1;
         } else if (orient(p, u, r) > 0) {
             swap(P, i, j);
-            i++;
-            j++;
-        } else if (orient(r, u, q) > 0) {
-            k--;
+            i += 1;
+            j += 1;
+        } else /* if (orient(r, u, q) > 0) */ {
+            assert((orient(r, u, q) > 0));
+
+            k -= 1;
             swap(P, j, k);
-        } else {
-            assert(false);
         }
     }
 
     assert(i <= j);
-    assert(k == j);
+    assert(j == k);
+    assert(k <= end);
+
+    *i_out = i;
+    *k_out = k;
+}
+
+static void dnf_gap(Points P, size_t start, size_t end,
+                    size_t gap_start, size_t gap_end,
+                    Point p, Point r, Point q,
+                    size_t *i_out, size_t *k_out)
+{
+    //printf("gap_start: %zu, gap_end: %zu\n", gap_start, gap_end);
+
+    // If this function is applied we are sure to have at least two threads,
+    // each thread starts at an offset, so gap_start (c1_max) will always be
+    // greater than 0 and gap_start.
+    assert(start < gap_start);
+    assert(gap_start < gap_end);
+
+    size_t i = start;
+    size_t j = start;
+    size_t k = end;
+
+    while (j < k) {
+        Point u = {P.x[j], P.y[j]};
+
+        if (u.x == DBL_MAX) {
+            j += 1;
+            if (j == gap_start) {
+                j = gap_end;
+            }
+        } else if (orient(p, u, r) > 0) {
+            swap(P, i, j);
+
+            i += 1;
+            if (i == gap_start) {
+                i = gap_end;
+            }
+
+            j += 1;
+            if (j == gap_start) {
+                j = gap_end;
+            }
+        } else /* if (orient(r, u, q) > 0) */ {
+            assert(orient(r, u, q) > 0);
+            if (k == gap_end) {
+                k = gap_start - 1;
+            } else {
+                k -= 1;
+            }
+
+            swap(P, j, k);
+        }
+    }
+
+    assert(i <= j);
+    assert(j == k);
     assert(k <= end);
 
     *i_out = i;
@@ -982,7 +1040,13 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     assert(c2_max <= n);
 
     size_t i, k;
-    dnf(P, c1_min, c2_max, p, r, q, &i, &k);
+
+    if (c1_max >= c2_min) {
+        dnf(P, c1_min, c2_max, p, r, q, &i, &k);
+    } else {
+        dnf_gap(P, c1_min, c2_max, c1_max, c2_min, p, r, q, &i, &k);
+    }
+
     assert(total1 == i);
     assert(total2 == n - k);
 
