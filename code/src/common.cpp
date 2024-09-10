@@ -316,6 +316,14 @@ static inline void TriLoopBody(Vecd px, Vecd py,
     /* Finding r1, r2 */
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
+#if 0
+    mask1 = (orient(px, py, x_coor - max1x, y_coor - max1y, rx, ry) > 0);
+    mask2 = (orient(rx, ry, x_coor - max1x, y_coor - max1y, qx, qy) > 0);
+    max1x = IfThenElse(mask1, x_coor, max1x);
+    max1y = IfThenElse(mask1, y_coor, max1y);
+    max2x = IfThenElse(mask2, x_coor, max2x);
+    max2y = IfThenElse(mask2, y_coor, max2y);
+#else
     /* The if statement is optional, but seems to be a bit (5%) faster. */
     if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
         max1x = IfThenElse(o1 > omax1, x_coor, max1x);
@@ -325,6 +333,7 @@ static inline void TriLoopBody(Vecd px, Vecd py,
         omax1 = Max(o1, omax1);
         omax2 = Max(o2, omax2);
     }
+#endif
 
     /* Partition */
     auto maskL = (o1 > Zero(d));
@@ -546,6 +555,7 @@ void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
         k -= nthreads * block;
         j += block - count;
     }
+    assert(j < block);
 }
 
 static inline
@@ -559,6 +569,7 @@ void Blockcyc_Add(size_t &k, size_t &j, size_t count,
         k += nthreads * block;
         j = j + count - block;
     }
+    assert(j < block);
 }
 
 /**
@@ -741,7 +752,12 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     /* [readL, readR[ is empty because they both start at something
      * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
      * a time. */
-    assert(readLk + readLj == readRk + readRj);
+    if (!(readLk + readLj == readRk + readRj)) {
+        fprintf(stderr, "n = %zu\n", n);
+        fprintf(stderr, "readLk = %zu, readLj = %zu, readRk = %zu, readRj = %zu\n",
+             readLk, readLj, readRk, readRj);
+        abort();
+    }
 
     /* vL, vR */
     assert((writeRk + writeRj) / block % nthreads == start / block);
@@ -767,149 +783,48 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj, nthreads);
 }
 
-static bool in_s1(size_t idx, size_t c1s[][8], unsigned int nthreads, size_t block)
+/**
+ * Invariant: [0, i[   subset S1
+ *            [i, j[   undefined
+ *            [j, k[   not classified
+ *            [k, end[ subset S2
+ * Assumes we have set undefined points to {-DBL_MAX, DBL_MAX}
+ **/
+static void dnf(Points P, size_t start, size_t end,
+                Point p, Point r, Point q,
+                size_t *i_out, size_t *k_out)
 {
-    unsigned int thread_idx = (idx / block) % nthreads;
-    size_t thread_s1_end = c1s[thread_idx][0];
-    return idx < thread_s1_end;
-}
-
-static bool in_s2(size_t idx, size_t c2s[][8], unsigned int nthreads, size_t block)
-{
-    unsigned int thread_idx = (idx / block) % nthreads;
-    size_t thread_s2_start = c2s[thread_idx][0];
-    return idx >= thread_s2_start;
-}
-
-static bool in_undef(bool in_s1, bool in_s2)
-{
-    assert(!(in_s1 && in_s2));
-    return !(in_s1 || in_s2);
-}
-
-static void dnf(Points P, size_t c1s[][8], size_t c2s[][8],
-                unsigned int nthreads, const size_t block,
-                size_t start, size_t end,
-                size_t *i_out, size_t *j_out)
-{
-    assert(start < end);
-
     size_t i = start;
     size_t j = start;
-    size_t k = end - 1;
+    size_t k = end;
 
-    while (j <= k) {
-        bool k_in_s1 = in_s1(k, c1s, nthreads, block);
-        bool k_in_s2 = in_s2(k, c2s, nthreads, block);
-        bool k_undef = in_undef(k_in_s1, k_in_s2);
-
-        while (k_undef && j <= k && k > 0) {
-            k -= 1;
-
-            k_in_s1 = in_s1(k, c1s, nthreads, block);
-            k_in_s2 = in_s2(k, c2s, nthreads, block);
-            k_undef = in_undef(k_in_s1, k_in_s2);
-        }
-
-        // P[k] can only be undefined if we reached the end
-        assert(k_undef == ((k < j) || (k == 0)));
-
-        /**
-         * Is there some remaining work we have to do here?
-         * Usually not, in the typical case where k > 0 we have 3 cases:
-         * - i <   k      == (j - 1)
-         * - i ==  k      == (j - 1)
-         * - k == (i - 1) == (j - 1)
-         *
-         * In all cases, i points to the element after the last S1. Namely,
-         * the first S2 in the first two cases, and undef in the third case
-         *
-         * In all cases, j points to the element after the last S2.
-         * Which is undef in all three cases
-         *
-         * However it is possible that k == 0, leading to the following cases:
-         * - 0 == k ==  i      == (j - 1)
-         * - 0 == k == (i - 1) == (j - 1)
-         * - 0 == k == i == j
-         *
-         * In the first two cases, i and j will be set correctly, as before.
-         * However if i == j == 0, then it might be that P[0] is actually in
-         * S1 or S2, but we have not checked it yet.
-         *
-         * Therefore we only break if j > k, or if P[0] is also in undef,
-         * ensuring that we do one final iteration in this edge case.
-         */
-        if (j > k || k_undef) {
-            break;
-        }
-
-        assert(k_in_s1 || k_in_s2);
-        assert(!(k_in_s1 && k_in_s2));
-        assert(i >= start);
-        assert(j >= start);
-        assert(j >= i);
-        assert(k >= j);
-        assert(k < end);
-
-        bool j_in_s1 = in_s1(j, c1s, nthreads, block);
-        bool j_in_s2 = in_s2(j, c2s, nthreads, block);
-        assert(!(j_in_s1 && j_in_s2));
-
-        if (j_in_s1) {
-            // Swap P[i] and P[j]
+    while (j < k) {
+        Point u = {P.x[j], P.y[j]};
+        if (u.x == DBL_MAX) {
+            j++;
+        } else if (orient(p, u, r) > 0) {
             swap(P, i, j);
-            i += 1;
-            j += 1;
-        } else if (j_in_s2) {
-            j += 1;
-        } else /* j is neither in s1 nor in s2 */ {
-            assert(!j_in_s1 && !j_in_s2);
-
-            if (k_in_s1) {
-                // We might have j == k, so we need a swap
-                double swap_x = P.x[k];
-                double swap_y = P.y[k];
-                // P[j] = P[i]
-                P.x[j] = P.x[i];
-                P.y[j] = P.y[i];
-                // P[i] = P[k]
-                P.x[i] = swap_x;
-                P.y[i] = swap_y;
-
-                i += 1;
-                j += 1;
-            } else /* k is in s2 */ {
-                assert(k_in_s2);
-
-                // P[j] = P[k]
-                assert(j < end);
-                assert(k < end);
-                P.x[j] = P.x[k];
-                P.y[j] = P.y[k];
-
-                j += 1;
-            }
-
-            // Break early to ensure that k does not underflow
-            if (k == 0) {
-                break;
-            }
-
-            k -= 1;
+            i++;
+            j++;
+        } else if (orient(r, u, q) > 0) {
+            k--;
+            swap(P, j, k);
+        } else {
+            assert(false);
         }
     }
 
-    //printf("i = %zu, j = %zu\n", i, j);
-    assert(i >= 0);
-    assert(j >= i);
-    assert((j == 0 && k == 0) ^ (k == j - 1));
+    assert(i <= j);
+    assert(k == j);
+    assert(k <= end);
 
     *i_out = i;
-    *j_out = j;
+    *k_out = k;
 }
 
 static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
 {
+//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
     if (len > 0 && dest != src) {
         memmove(P.x + dest, P.x + src, len * sizeof(double));
         memmove(P.y + dest, P.y + src, len * sizeof(double));
@@ -919,6 +834,7 @@ static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
 static void CopyPointsToBuffer(Points P, size_t src, size_t len,
                                double **buf_x, double **buf_y)
 {
+//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
     if (len > 0) {
         *buf_x = (double *)malloc(len * sizeof(double));
         *buf_y = (double *)malloc(len * sizeof(double));
@@ -930,6 +846,7 @@ static void CopyPointsToBuffer(Points P, size_t src, size_t len,
 static void CopyPointsFromBuffer(Points P, size_t dest, size_t len,
                                  double **buf_x, double **buf_y)
 {
+//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
     if (len > 0) {
         memcpy(P.x + dest, *buf_x, len * sizeof(double));
         memcpy(P.y + dest, *buf_y, len * sizeof(double));
@@ -948,16 +865,16 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    size_t *c1_out, size_t *c2_out,
                    unsigned int nthreads)
 {
+    const ScalableTag<double> d;
+    size_t n_end = n % Lanes(d);
+    n -= n_end;
+
     constexpr size_t block = 8;
-    if (nthreads <= 1 || ceildiv(n, block) < nthreads) {
+    if (nthreads <= 1 || n / block < nthreads) {
         TriPartitionV(n, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
         return;
     }
-
-    const ScalableTag<double> d;
-    size_t n_end = n % Lanes(d);
-    n -= n_end;
 
     /* Pad to avoid false sharing */
     size_t total1s[nthreads][8];
@@ -986,6 +903,19 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total2s[me][0] = total2;
         r1s[me][0]     = r1;
         r2s[me][0]     = r2;
+
+        /* Change undefined points to recognize them later on.
+         * For now we do it for all of them, but later we should optimise to
+         * [c1_min, c1_max[, [c2_min, c2_max[. */
+        size_t i = c1;
+        while (i < c2) {
+            P.x[i] = DBL_MAX;
+            P.y[i] = DBL_MAX;
+            i++;
+            if (i % block == 0) {
+                i += (nthreads - 1) * block;
+            }
+        }
     }
 
     Point r1      = r1s[0][0];
@@ -999,10 +929,12 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total1 += total1s[t][0];
         total2 += total2s[t][0];
 
-        if (orient(p, r1s[t][0], r) > orient(p, r1, r)) {
+        if ((total1s[t][0] != 0) && 
+                orient(p, r1s[t][0], r) > orient(p, r1, r)) {
             r1 = r1s[t][0];
         }
-        if (orient(r, r2s[t][0], q) > orient(r, r2, q)) {
+        if ((total2s[t][0] != 0) &&
+                orient(r, r2s[t][0], q) > orient(r, r2, q)) {
             r2 = r2s[t][0];
         }
 
@@ -1011,6 +943,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_min = min(c2_min, c2s[t][0]);
         c2_max = max(c2_max, c2s[t][0]);
     }
+
     /**
      * When working with index sets, say I = {0, ..., n - 1}, we usually
      * do not use the upper bound n - 1, but the smallest strict upper
@@ -1021,115 +954,20 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      *   ub / block % nthreads == t.
      * This can be strictly larger than n.
      **/
+    c2_min = min(c2_min, n);
     c2_max = min(c2_max, n);
+    c1_min = min(c1_min, n);
+    c1_max = min(c1_max, n);
 
-    //printf("n = %zu; n_end = %zu\n", n, n_end);
-    //printf("total1 = %zu; total2 = %zu\n", total1, total2);
-    //printf("c1_min = %zu; c1_max = %zu\n", c1_min, c1_max);
-    //printf("c2_min = %zu; c2_max = %zu\n", c2_min, c2_max);
     assert(c1_min <= c1_max);
     assert(c2_min <= c2_max);
-    assert(c1_min < c2_max);
+    assert(c1_min <= c2_max);
     assert(c2_max <= n);
 
-    if (c1_max >= c2_min) {
-        /**
-         * P now looks like:
-         *
-         * | S1 | ?    | ?    | ?    | S2   | ... |
-         * 0    c1_min c2_min c1_max c2_max n     n+n_end
-         *
-         * We apply dnf to [c1_min, c2_max)
-         */
-        size_t i, j;
-        dnf(P, c1s, c2s, nthreads, block, c1_min, c2_max, &i, &j);
-        size_t len = j - i;
-
-        /**
-         * P now looks like:
-         *
-         * | S1 | S1   | S2 | undef | S2   | ... |
-         * 0    c1_min i    j       c2_max n     n+n_end
-         *
-         * Namely:
-         * - P[0, i) in S1
-         * - P[i, j) in S2
-         * - P[j, c2_max) undef
-         *
-         * We move [i, j) to [c2_max - (j - i), c2_max)
-         */
-        MovePointsLocal(P, i, c2_max - len, len);
-
-        /**
-         * P now looks like:
-         *
-         * | S1 | S1   | undef  | S2         | S2   | ... |
-         * 0    c1_min i        c2_max-(j-i) c2_max n     n+n_end
-         */
-        assert(total1 == i);
-        assert(n - total2 == c2_max - len);
-    } else /* c1_max < c2_min */ {
-        /**
-         * P now looks like:
-         *
-         * | S1 | ?    | undef | ?    | S2   | ... |
-         * 0    c1_min c1_max  c2_min c2_max n     n+n_end
-         *
-         * We apply dnf twice:
-         * - once on [c1_min, c1_max),
-         * - and once on [c2_min, c2_max)
-         */
-        size_t i1, j1;
-        dnf(P, c1s, c2s, nthreads, block, c1_min, c1_max, &i1, &j1);
-        size_t len1 = j1 - i1;
-
-        /**
-         * P now looks like:
-         *
-         * | S1 | S1   | S2 | undef | undef | ?    | S2   | ... |
-         * 0    c1_min i1   j1      c1_max  c2_min c2_max n     n+n_end
-         */
-        size_t i2, j2;
-        assert(c2_max <= n);
-        assert(c2_min < n);
-        assert(c2_min <= c2_max);
-        dnf(P, c1s, c2s, nthreads, block, c2_min, c2_max, &i2, &j2);
-        size_t len2 = j2 - i2;
-
-        /**
-         * P now looks like:
-         *
-         * | S1 | S1   | S2 | undef | undef | S1   | S2 | undef | S2   | ... |
-         * 0    c1_min i1   j1      c1_max  c2_min i2   j2      c2_max n     n+n_end
-         *
-         * - Move [c2_min, i2) to buffer
-         * - Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
-         * - Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
-         * - Move buffer to [i1, i1 + (i2 - c2_min))
-         */
-        double *buf_x, *buf_y;
-        size_t buf_len = i2 - c2_min;
-        // Move [c2_min, i2) to buffer
-        CopyPointsToBuffer(P, c2_min, buf_len, &buf_x, &buf_y);
-
-        // Move [i2, j2) to [c2_max - (j2 - i2), c2_max)
-        MovePointsLocal(P, i2, c2_max - len2, len2);
-
-        // Move [i1, j1) to [c2_max - (j2 - i2) - (j1 - i1), c2_max - (j2 - i2))
-        MovePointsLocal(P, i1, c2_max - len2 - len1, len1);
-
-        // Move buffer to [i1, i1 + (i2 - c2_min))
-        CopyPointsFromBuffer(P, i1, buf_len, &buf_x, &buf_y);
-
-        /**
-         * P now looks like:
-         *
-         * | S1 | undef        | S2                   | ... |
-         * 0    i1+(i2-c2_min) c2_max-(j2-i2)-(j1-i1) n     n+n_end
-         */
-        assert(total1 == i1 + buf_len);
-        assert(n - total2 == c2_max - len2 - len1);
-    }
+    size_t i, k;
+    dnf(P, c1_min, c2_max, p, r, q, &i, &k);
+    assert(total1 == i);
+    assert(total2 == n - k);
 
     /**
      * P now looks like:
@@ -1138,6 +976,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      * 0    total1  n-total2 n     n+n_end
      */
     if (n_end > 0) {
+//        printf("Leftover:\n");
+//        Points O = {P.x + n, P.y + n};
+//        PrintPoints(n_end, O);
         Points LeftOver = {P.x + n, P.y + n};
         Point  r1_left_over, r2_left_over;
         size_t c1_left_over, c2_left_over;
@@ -1172,9 +1013,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          */
         double *buf_x, *buf_y;
         // Move [n,n+c1_left_over) to buffer
+//        printf("c1_left_over = %zu\n", c1_left_over);
         CopyPointsToBuffer(P, n, c1_left_over, &buf_x, &buf_y);
 
         // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
+        assert(n + c2_left_over >= total2);
         MovePointsLocal(P, n - total2, n + c2_left_over - total2, total2);
 
         // Move buffer to [total1,total1+c1_left_over)

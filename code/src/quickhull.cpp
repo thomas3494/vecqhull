@@ -1,6 +1,7 @@
 #include <omp.h>
 #include <string.h>
 #include <math.h>
+#include <assert.h>
 
 #include "quickhull.h"
 #include "common.h"
@@ -53,6 +54,7 @@ size_t Quickhull(size_t n, Points P)
 #endif
 
     Points S2 = {S1.x + c2, S1.y + c2};
+    assert(total1 <= c2);
     size_t lcount = FindHull(total1, S1, p, r1, q);
     size_t rcount = FindHull(total2, S2, q, r2, p);
 
@@ -157,6 +159,7 @@ size_t QuickhullP(size_t n, Points P)
         lcount = FindHull(total1, S1, p, r1, q);
         rcount = FindHull(total2, S2, q, r2, p);
     } else {
+        assert(total1 <= c2);
         #pragma omp parallel shared(threads1, threads2) num_threads(2)
         {
             #pragma omp single nowait
@@ -206,6 +209,7 @@ size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
         lcount = FindHull(total1, S1, p, r1, r);
         rcount = FindHull(total2, S2, r, r2, q);
     } else {
+        assert(total1 <= c2);
         #pragma omp parallel shared(threads1, threads2) num_threads(2)
         {
             #pragma omp single nowait
