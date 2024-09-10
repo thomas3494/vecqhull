@@ -876,8 +876,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     n -= n_end;
 
     constexpr size_t block = 8;
-    if (nthreads <= 1 || n / block < nthreads) {
-        TriPartitionV(n, P, p, r, q,
+    if (nthreads <= 1 || n < block * nthreads) {
+        TriPartitionV(n + n_end, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
         return;
     }
@@ -896,13 +896,19 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         size_t c1, c2, total1, total2;
         Point r1, r2;
 
+        size_t start = me * block;
         TriPartititionBlockCyc(n, P, p, r, q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
-                               me * block, block, nthreads);
+                               start, block, nthreads);
 
-//        printf("Thread %u, S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n"
-//               "r1 = (%e, %e), r2 = (%e, %e)\n",
-//               me, me * block, c1, c2, total1, total2, r1.x, r1.y, r2.x, r2.y);
+        //printf("Thread %2u/%2u: S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n"
+        //       "              r1 = (%e, %e), r2 = (%e, %e)\n",
+        //       me, nthreads, start, c1, c2, total1, total2, r1.x, r1.y, r2.x, r2.y);
+
+        assert(c1 >= start);
+        assert(c1 <= n + block * nthreads);
+        assert(c2 >= start);
+        assert(c2 <= n * block * nthreads);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -936,8 +942,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total1 += total1s[t][0];
         total2 += total2s[t][0];
 
-        /* Argmax over empty set is undefined */ 
-        if ((total1s[t][0] != 0) && 
+        /* Argmax over empty set is undefined */
+        if ((total1s[t][0] != 0) &&
                 orient(p, r1s[t][0], r) > orient(p, r1, r)) {
             r1 = r1s[t][0];
         }
@@ -951,6 +957,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         c2_min = min(c2_min, c2s[t][0]);
         c2_max = max(c2_max, c2s[t][0]);
     }
+
+    //printf("total1: %zu, total2: %zu, total: %zu, n: %zu\n", total1, total2, total1 + total2, n);
+    assert(total1 + total2 <= n);
 
     /**
      * When working with index sets, say I = {0, ..., n - 1}, we usually
@@ -1038,9 +1047,13 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total2 += (n_end - c2_left_over);
     }
 
-    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n + n_end - total2, n + n_end);
+    n += n_end;
+
+    //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n - total2, n);
+    assert(total1 <= n - total2);
     *c1_out = total1;
-    *c2_out = (n + n_end) - total2;
+    *c2_out = n - total2;
     *r1_out = r1;
     *r2_out = r2;
+
 }
