@@ -822,37 +822,41 @@ static void dnf(Points P, size_t start, size_t end,
     *k_out = k;
 }
 
-static void MovePointsLocal(Points P, size_t src, size_t dest, size_t len)
+static void MovePointsLocal(size_t n, Points P, size_t src, size_t dest, size_t len)
 {
-//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
-    if (len > 0 && dest != src) {
-        memmove(P.x + dest, P.x + src, len * sizeof(double));
-        memmove(P.y + dest, P.y + src, len * sizeof(double));
-    }
+    assert(len > 0);
+    assert(len < n);
+    assert(src + len <= n);
+    assert(dest + len <= n);
+
+    memmove(P.x + dest, P.x + src, len * sizeof(double));
+    memmove(P.y + dest, P.y + src, len * sizeof(double));
 }
 
-static void CopyPointsToBuffer(Points P, size_t src, size_t len,
+static void CopyPointsToBuffer(size_t n, Points P, size_t src, size_t len,
                                double **buf_x, double **buf_y)
 {
-//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
-    if (len > 0) {
-        *buf_x = (double *)malloc(len * sizeof(double));
-        *buf_y = (double *)malloc(len * sizeof(double));
-        memcpy(*buf_x, P.x + src, len * sizeof(double));
-        memcpy(*buf_y, P.y + src, len * sizeof(double));
-    }
+    assert(len > 0);
+    assert(len <= n);
+    assert(src + len <= n);
+
+    *buf_x = (double *)malloc(len * sizeof(double));
+    *buf_y = (double *)malloc(len * sizeof(double));
+    memcpy(*buf_x, P.x + src, len * sizeof(double));
+    memcpy(*buf_y, P.y + src, len * sizeof(double));
 }
 
-static void CopyPointsFromBuffer(Points P, size_t dest, size_t len,
+static void CopyPointsFromBuffer(size_t n, Points P, size_t dest, size_t len,
                                  double **buf_x, double **buf_y)
 {
-//    printf("%s:%d len = %zu\n", __FILE__, __LINE__, len);
-    if (len > 0) {
-        memcpy(P.x + dest, *buf_x, len * sizeof(double));
-        memcpy(P.y + dest, *buf_y, len * sizeof(double));
-        free(*buf_x);
-        free(*buf_y);
-    }
+    assert(len > 0);
+    assert(len <= n);
+    assert(dest + len <= n);
+
+    memcpy(P.x + dest, *buf_x, len * sizeof(double));
+    memcpy(P.y + dest, *buf_y, len * sizeof(double));
+    free(*buf_x);
+    free(*buf_y);
 }
 
 /**
@@ -1012,24 +1016,28 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * - Move buffer to [total1,total1+c1_left_over)
          */
         double *buf_x, *buf_y;
-        // Move [n,n+c1_left_over) to buffer
-//        printf("c1_left_over = %zu\n", c1_left_over);
-        CopyPointsToBuffer(P, n, c1_left_over, &buf_x, &buf_y);
+        if (c1_left_over > 0) {
+            // Move [n,n+c1_left_over) to buffer
+            CopyPointsToBuffer(n + n_end, P, n, c1_left_over, &buf_x, &buf_y);
+        }
 
-        // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
-        assert(n + c2_left_over >= total2);
-        MovePointsLocal(P, n - total2, n + c2_left_over - total2, total2);
+        if (c2_left_over > 0 && total2 > 0) {
+            // Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
+            MovePointsLocal(n + n_end, P, n - total2, n + c2_left_over - total2, total2);
+        }
 
-        // Move buffer to [total1,total1+c1_left_over)
-        CopyPointsFromBuffer(P, total1, c1_left_over, &buf_x, &buf_y);
+        if (c1_left_over > 0) {
+            // Move buffer to [total1,total1+c1_left_over)
+            CopyPointsFromBuffer(n + n_end, P, total1, c1_left_over, &buf_x, &buf_y);
+        }
 
         total1 += c1_left_over;
-        total2 += n_end - c2_left_over;
+        total2 += (n_end - c2_left_over);
     }
 
     //printf("S1: [0, %zu), S2: [%zu, %zu)\n", total1, n + n_end - total2, n + n_end);
     *c1_out = total1;
-    *c2_out = n + n_end - total2;
+    *c2_out = (n + n_end) - total2;
     *r1_out = r1;
     *r2_out = r2;
 }
