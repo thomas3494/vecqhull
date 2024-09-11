@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef RAPL_ENERGY
+#include <rapl_energy.h>
+#endif
+
 #include "common.h"
 #include "quickhull.h"
 
@@ -36,9 +40,20 @@ int main(int argc, char **argv)
     size_t n;
     Points P = (bench) ? input_b(&n) : input(&n);
 
+    #ifdef RAPL_ENERGY
+    struct EnergyC *rapl;
+    rapl = start_rapl();
+    #endif
+
     double start = wtime();
     size_t count = QuickhullP(n, P);
     double stop = wtime();
+
+    #ifdef RAPL_ENERGY
+    print_energy(rapl);
+    printf("rapl: ");
+    free_energy(rapl);
+    #endif
 
     double duration = stop - start;
 

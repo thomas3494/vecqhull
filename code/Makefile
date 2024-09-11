@@ -2,6 +2,10 @@
 
 include config.mk
 
+ifneq ("$(wildcard ~/.local/include/rapl_energy.h)","")
+	LFLAGS += -lrapl_energy -DRAPL_ENERGY
+endif
+
 .PHONY: all clean
 
 all: bin/leftright_test bin/test_partition bin/test_partitionp bin/test_quickhull bin/index2points bin/text2bin bin/test_quickhull_par bin/precision
@@ -9,7 +13,7 @@ all: bin/leftright_test bin/test_partition bin/test_partitionp bin/test_quickhul
 bin/common.o: src/common.cpp src/common.h
 	$(CXX) $(FLAGS) -c $< -o $@ $(LFLAGS)
 
-bin/quickhull.o: src/quickhull.cpp 
+bin/quickhull.o: src/quickhull.cpp
 	$(CXX) $(FLAGS) -c $^ -o $@ $(LFLAGS)
 
 bin/leftright_test: src/leftright_test.c bin/common.o
