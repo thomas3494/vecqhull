@@ -1084,11 +1084,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         /**
          * P now looks like:
          *
-         * | S1 | -    | S1     | -          | S2           |
-         * 0    total1 n-total2 n-total2+c1L
+         * | S1 | -    | S1     | -          | S2  |
+         * 0    total1 n-total2 n-total2+c1L       n+n_end
          */
-        memmove(P.x + (total1), P.x + (n - total2), c1_left_over * sizeof(double));
-        memmove(P.y + (total1), P.y + (n - total2), c1_left_over * sizeof(double));
+        memmove(P.x + total1, P.x + (n - total2), c1_left_over * sizeof(double));
+        memmove(P.y + total1, P.y + (n - total2), c1_left_over * sizeof(double));
 
         total1 += c1_left_over;
         total2 += (n_end - c2_left_over);
@@ -1136,11 +1136,11 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * P now looks like:
          *
          * | S1 | -        | S2       | -          | S2           |
-         * 0    total1+c1L total1+c2L n_off+total1 n+n_off-total2 n+n_off
+         * 0    total1+c1L total1+c2L total1+n_off n+n_off-total2 n+n_off
          */
         size_t c2_len = n_off - c2_left_over;
-        memmove(P.x + (n + n_off - total2 - c2_len), P.x + (total1 + c2_left_over), c2_len * sizeof(double));
-        memmove(P.y + (n + n_off - total2 - c2_len), P.y + (total1 + c2_left_over), c2_len * sizeof(double));
+        memmove(P.x + (n - total2 + c2_left_over), P.x + (total1 + c2_left_over), c2_len * sizeof(double));
+        memmove(P.y + (n - total2 + c2_left_over), P.y + (total1 + c2_left_over), c2_len * sizeof(double));
 
         total1 += c1_left_over;
         total2 += c2_len;
