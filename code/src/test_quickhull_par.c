@@ -42,18 +42,14 @@ int main(int argc, char **argv)
 
     #ifdef RAPL_ENERGY
     struct EnergyC *rapl;
-    rapl = start_rapl();
+    if (bench) {
+        rapl = start_rapl();
+    }
     #endif
 
     double start = wtime();
     size_t count = QuickhullP(n, P);
     double stop = wtime();
-
-    #ifdef RAPL_ENERGY
-    print_energy(rapl);
-    printf("rapl: ");
-    free_energy(rapl);
-    #endif
 
     double duration = stop - start;
 
@@ -66,6 +62,12 @@ int main(int argc, char **argv)
 
     if (bench) {
         printf("%lf\n", duration);
+
+        #ifdef RAPL_ENERGY
+        print_energy(rapl);
+        free_energy(rapl);
+        free(rapl);
+        #endif
     }
 
     if (print) {
