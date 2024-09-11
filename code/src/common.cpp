@@ -908,25 +908,28 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                    unsigned int nthreads)
 {
     const ScalableTag<double> d;
-
     uintptr_t points_per_cacheline = 64 / sizeof(double);
-    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) /
-                                sizeof(double)) % points_per_cacheline;
-
-    n -= n_off;
-
-    size_t n_end = n % Lanes(d);
-    n -= n_end;
 
     constexpr size_t block = 8192;
-    if (nthreads <= 1 || n < block * nthreads) {
-        TriPartitionV(n_off + n + n_end, P, p, r, q,
+    if (nthreads <= 1 ||
+            n + points_per_cacheline + Lanes(d) < block * nthreads)
+    {
+        TriPartitionV(n, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
         return;
     }
 
+    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) /
+                                sizeof(double)) % points_per_cacheline;
+    assert(n >= n_off);
+    n -= n_off;
     P.x += n_off;
     P.y += n_off;
+
+    size_t n_end = n % Lanes(d);
+    assert(n >= n_end);
+    n -= n_end;
+    assert(n % Lanes(d) == 0);
 
     assert((uintptr_t)P.x % 64 == 0);
     assert((uintptr_t)P.y % 64 == 0);
@@ -1167,6 +1170,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total2 += (n_off - c2_left_over);
         n += n_off;
     }
+
+    assert(total1 <= n);
+    assert(total2 <= n);
 
     assert(total1 <= n - total2);
     *c1_out = total1;
