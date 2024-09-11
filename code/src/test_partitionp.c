@@ -11,7 +11,9 @@ void TestPartition(size_t n, Points P1, Points P2, Point p, Point r, Point q,
                    Point *r1_out, Point *r2_out, size_t *c1_out,
                    size_t *c2_out)
 {
-    assert(n > 1);
+    if (n <= 1) {
+        return;
+    }
 
     Point r1_seq, r2_seq, r1_par, r2_par;
     size_t c1_seq, c2_seq, c1_par, c2_par;

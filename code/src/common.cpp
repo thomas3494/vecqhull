@@ -611,7 +611,7 @@ void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
     }
 }
 
-static __attribute__((always_inline)) inline void 
+static __attribute__((always_inline)) inline void
 Blockcyc_TriLoopBody(Vecd px, Vecd py,
                      Vecd rx, Vecd ry,
                      Vecd qx, Vecd qy,
@@ -882,41 +882,15 @@ static void dnf_gap(Points P, size_t start, size_t end,
     *k_out = k;
 }
 
-static void MovePointsLocal(size_t n, Points P, size_t src, size_t dest, size_t len)
+static void SwapPoints(size_t n, Points P, size_t src, size_t dest, size_t len)
 {
-    assert(len > 0);
     assert(len < n);
     assert(src + len <= n);
     assert(dest + len <= n);
 
-    memmove(P.x + dest, P.x + src, len * sizeof(double));
-    memmove(P.y + dest, P.y + src, len * sizeof(double));
-}
-
-static void CopyPointsToBuffer(size_t n, Points P, size_t src, size_t len,
-                               double **buf_x, double **buf_y)
-{
-    assert(len > 0);
-    assert(len <= n);
-    assert(src + len <= n);
-
-    *buf_x = (double *)malloc(len * sizeof(double));
-    *buf_y = (double *)malloc(len * sizeof(double));
-    memcpy(*buf_x, P.x + src, len * sizeof(double));
-    memcpy(*buf_y, P.y + src, len * sizeof(double));
-}
-
-static void CopyPointsFromBuffer(size_t n, Points P, size_t dest, size_t len,
-                                 double **buf_x, double **buf_y)
-{
-    assert(len > 0);
-    assert(len <= n);
-    assert(dest + len <= n);
-
-    memcpy(P.x + dest, *buf_x, len * sizeof(double));
-    memcpy(P.y + dest, *buf_y, len * sizeof(double));
-    free(*buf_x);
-    free(*buf_y);
+    for (size_t i = 0; i < len; i += 1) {
+        swap(P, dest + i, src + i);
+    }
 }
 
 /* Sets block-cyclic subset of P[start, end) to p. */
@@ -927,7 +901,7 @@ void BlockCycSet(Points P, unsigned int t, size_t block, unsigned int nthreads,
     /* If necessary, round up to first index in I_t */
     size_t i = (start_t == t) ?
                     start :
-                    t * block + ceildiv(start - t * block, nthreads * block) * 
+                    t * block + ceildiv(start - t * block, nthreads * block) *
                                             nthreads * block;
     while (i < end) {
         P.x[i] = p.x;
@@ -947,7 +921,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     const ScalableTag<double> d;
 
     uintptr_t points_per_cacheline = 64 / sizeof(double);
-    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) / 
+    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) /
                                 sizeof(double)) % points_per_cacheline;
 
     n -= n_off;
@@ -1049,6 +1023,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     c1_min = min(c1_min, n);
     c1_max = min(c1_max, n);
 
+    printf("c1_min: %zu, c1_max: %zu, c2_min: %zu, c2_max: %zu\n", c1_min, c1_max, c2_min, c2_max);
     assert(c1_min <= c1_max);
     assert(c2_min <= c2_max);
     assert(c1_min <= c2_max);
@@ -1064,7 +1039,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                     {DBL_MAX, DBL_MAX});
         BlockCycSet(P, t, block, nthreads, max(c2_min, c1), c2,
                     {DBL_MAX, DBL_MAX});
-    } 
+    }
 
     size_t i, k;
 
@@ -1091,17 +1066,17 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        if ((c1_left_over > 0) && 
+        assert(c1_left_over <= c2_left_over);
+        assert(c2_left_over <= n_end);
+
+        if ((c1_left_over > 0) &&
                 (orient(p, r1_left_over, r) > orient(p, r1, r))) {
             r1 = r1_left_over;
         }
-        if ((c2_left_over < n_end) && 
+        if ((c2_left_over < n_end) &&
                 (orient(r, r2_left_over, q) > orient(r, r2, q))) {
             r2 = r2_left_over;
         }
-
-        assert(c1_left_over <= c2_left_over);
-        assert(c2_left_over <= n_end);
 
         /**
          * P now looks like:
@@ -1109,33 +1084,32 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
          * | S1 | undef | S2     | S1 | undef        | S2           |
          * 0    total1  n-total2 n    n+c1_left_over n+c2_left_over n+n_end
          *
-         * - Move [n,n+c1_left_over) to buffer
-         * - Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over)
-         * - Move buffer to [total1,total1+c1_left_over)
+         * - Swap [n,n+c1_left_over) with [n-total2,n-total2+c1_left_over)
+         * - Swap [n-total2,n-total2+c1_left_over) with [total1,total1+c1_left_over)
+         * - Swap [n-total2+c1_left_over,n-total2+c1_left_over+(c2_left_over-c1_left_over)) with [n+c1_left_over,n+c2_left_over)
          */
-        double *buf_x, *buf_y;
-        if (c1_left_over > 0) {
-            /* Move [n,n+c1_left_over) to buffer */
-            CopyPointsToBuffer(n + n_end, P, n, c1_left_over, &buf_x, &buf_y);
-        }
+        // Swap [n,n+c1_left_over) with [n-total2,n-total2+c1_left_over)
+        size_t src = n;
+        size_t dest = n - total2;
+        size_t len = c1_left_over;
+        SwapPoints(n + n_end, P, src, dest, len);
 
-        if (c2_left_over > 0 && total2 > 0) {
-            /* Move [n-total2,n) to [n+c2_left_over-total2,n+c2_left_over) */
-            MovePointsLocal(n + n_end, P, n - total2, 
-                            n + c2_left_over - total2, total2);
-        }
+        // Swap [n-total2,n-total2+c1_left_over) with [total1,total1+c1_left_over)
+        src = dest; // n - total2;
+        dest = total1;
+        // len = c1_left_over;
+        SwapPoints(n + n_end, P, src, dest, len);
 
-        if (c1_left_over > 0) {
-            /* Move buffer to [total1,total1+c1_left_over) */
-            CopyPointsFromBuffer(n + n_end, P, total1, c1_left_over, 
-                                 &buf_x, &buf_y);
-        }
+        // Swap [n-total2+c1_left_over,n-total2+c1_left_over+(c2_left_over-c1_left_over)) with [n+c1_left_over,n+c2_left_over)
+        src = n - total2 + c1_left_over;
+        dest = n + c1_left_over;
+        len = c2_left_over - c1_left_over;
+        SwapPoints(n + n_end, P, src, dest, len);
 
         total1 += c1_left_over;
         total2 += (n_end - c2_left_over);
+        n += n_end;
     }
-
-    n += n_end;
 
     /* Insert the points cut off at the front */
     if (n_off > 0) {
@@ -1147,25 +1121,47 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        if ((c1_left_over > 0) && 
+        printf("n_off: %zu, c1_left_over: %zu, c2_left_over: %zu\n", n_off, c1_left_over, c2_left_over);
+        assert(c1_left_over <= c2_left_over);
+        assert(c2_left_over <= n_off);
+
+        if ((c1_left_over > 0) &&
                 (orient(p, r1_left_over, r) > orient(p, r1, r))) {
             r1 = r1_left_over;
         }
-        if ((c2_left_over < n_end) && 
+        if ((c2_left_over < n_off) &&
                 (orient(r, r2_left_over, q) > orient(r, r2, q))) {
             r2 = r2_left_over;
         }
 
         /**
-         * Situation
-         *    | S1 | undef | S2 | S1 | undef | S2 |
-         **/
+         * P now looks like:
+         *
+         * | S1 | undef      | S2         | S1  | undef      | S2           |
+         * 0    c1_left_over c2_left_over n_off n_off+total1 n+n_off-total2 n+n_off
+         */
+        size_t i = n_off;
+        size_t k = n_off + total1;
+        while (i > c1_left_over) {
+            i -= 1;
+            k -= 1;
+            swap(P, i, k);
+        }
+
+        /**
+         * P now looks like:
+         *
+         * | S1 | -        | S2       | -          | S2           |
+         * 0    total1+c1L total1+c2L n_off+total1 n+n_off-total2 n+n_off
+         */
+        size_t c2_len = n_off - c2_left_over;
+        memmove(P.x + (n + n_off - total2 - c2_len), P.x + (total1 + c2_left_over), c2_len * sizeof(double));
+        memmove(P.y + (n + n_off - total2 - c2_len), P.y + (total1 + c2_left_over), c2_len * sizeof(double));
 
         total1 += c1_left_over;
-        total2 += (n_off - c2_left_over);
+        total2 += c2_len;
+        n += n_off;
     }
-
-    n += n_off;
 
     assert(total1 <= n - total2);
     *c1_out = total1;
