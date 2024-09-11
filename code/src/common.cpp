@@ -1094,6 +1094,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             size_t dest = total1;
             size_t len = c1_left_over;
 
+            assert(src + len < n + n_end);
+            assert(dest + len < n + n_end);
+
             memmove(P.x + dest, P.x + src, len * sizeof(double));
             memmove(P.y + dest, P.y + src, len * sizeof(double));
         }
@@ -1152,6 +1155,9 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
             size_t src = total1 + c2_left_over;
             size_t dest = n - total2 + c2_left_over;
             size_t len = n_off - c2_left_over;
+
+            assert(src + len < n + n_off);
+            assert(dest + len < n + n_off);
 
             memmove(P.x + dest, P.x + src, len * sizeof(double));
             memmove(P.y + dest, P.y + src, len * sizeof(double));
