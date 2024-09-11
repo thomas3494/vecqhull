@@ -68,7 +68,7 @@ int main(int argc, char **argv)
             printf("runtime-ms");
             #ifdef RAPL_ENERGY
             for (uintptr_t i = 0; i < elapsed->len; i++) {
-                printf(",%s", elapsed->keys[i]);
+                printf(" %s", elapsed->keys[i]);
             }
             #endif
             printf("\n");
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
         printf("%lf", duration);
         #ifdef RAPL_ENERGY
         for (uintptr_t i = 0; i < elapsed->len; i++) {
-            printf(",%lf", elapsed->energy[i]);
+            printf(" %lf", elapsed->energy[i]);
         }
         #endif
         printf("\n");
