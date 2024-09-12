@@ -1,0 +1,104 @@
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000   -c -o mysecond.o mysecond.c
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c mysecond.c
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c stream.f
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.o mysecond.o -o stream_f
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.c -o stream_c
+/var/spool/slurm/slurmd/job5115312/slurm_script: 12: numactl: not found
+
+
+###############################################################################
+Science Cluster
+Job 5115312 for user 'tkoopman'
+Finished at: Thu Sep 12 12:24:26 CEST 2024
+
+Job details:
+============
+
+Name                : stream_cn125.sh
+User                : tkoopman
+Partition           : csmpi_long
+Nodes               : cn124
+Cores               : 16
+State               : FAILED
+Submit              : 2024-09-12T12:24:23
+Start               : 2024-09-12T12:24:24
+End                 : 2024-09-12T12:24:26
+Reserved walltime   : 01:00:00
+Used walltime       : 00:00:02
+Used CPU time       : --
+% User (Computation): 81.53%
+% System (I/O)      :  0.00%
+Mem reserved        : 31000M
+Max Mem used        : 84.00K (cn124)
+Max Disk Write      : 0.00  (cn124)
+Max Disk Read       : 0.00  (cn124)
+
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000   -c -o mysecond.o mysecond.c
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c mysecond.c
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c stream.f
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.o mysecond.o -o stream_f
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.c -o stream_c
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+This system uses 8 bytes per array element.
+-------------------------------------------------------------
+Array size = 100000000 (elements), Offset = 0 (elements)
+Memory per array = 762.9 MiB (= 0.7 GiB).
+Total memory required = 2288.8 MiB (= 2.2 GiB).
+Each kernel will be executed 10 times.
+ The *best* time for each kernel (excluding the first iteration)
+ will be used to compute the reported bandwidth.
+-------------------------------------------------------------
+Number of Threads requested = 32
+Number of Threads counted = 32
+-------------------------------------------------------------
+Your clock granularity/precision appears to be 1 microseconds.
+Each test below will take on the order of 11417 microseconds.
+   (= 11417 clock ticks)
+Increase the size of the arrays if this shows that
+you are not getting at least 20 clock ticks per test.
+-------------------------------------------------------------
+WARNING -- The above is only a rough guideline.
+For best results, please be sure you know the
+precision of your system timer.
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:           99439.7     0.016186     0.016090     0.016264
+Scale:          96829.8     0.016748     0.016524     0.017029
+Add:           109085.8     0.022036     0.022001     0.022090
+Triad:         108661.9     0.022208     0.022087     0.022398
+-------------------------------------------------------------
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+-------------------------------------------------------------
+
+
+###############################################################################
+Science Cluster
+Job 5115313 for user 'tkoopman'
+Finished at: Thu Sep 12 12:24:28 CEST 2024
+
+Job details:
+============
+
+Name                : allocation
+User                : tkoopman
+Partition           : 
+Nodes               : cn132
+Cores               : 32
+State               : COMPLETED
+Submit              : 2024-09-12T12:24:26
+Start               : 2024-09-12T12:24:26
+End                 : 2024-09-12T12:24:28
+Reserved walltime   : --
+Used walltime       : 00:00:02
+Used CPU time       : 00:00:31 (efficiency: 48.74%)
+% User (Computation): 83.00%
+% System (I/O)      : 17.00%
+Mem reserved        : 16?
+Max Mem used        : 84.00K (cn132)
+Max Disk Write      : 0.00  (cn132)
+Max Disk Read       : 0.00  (cn132)
+

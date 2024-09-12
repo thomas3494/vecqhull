@@ -127,7 +127,7 @@ C     .. Data statements ..
       DATA avgtime/4*0.0D0/,mintime/4*1.0D+36/,maxtime/4*0.0D0/
       DATA label/'Copy:      ','Scale:     ','Add:       ',
      $     'Triad:     '/
-      DATA bytes/2,2,3,3/
+      DATA bytes/3,3,4,4/
 C     ..
 
 *       --- SETUP --- determine precision and check timing ---

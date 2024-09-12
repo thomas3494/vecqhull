@@ -41,6 +41,7 @@
 /*  5. Absolutely no warranty is expressed or implied.                   */
 /*-----------------------------------------------------------------------*/
 # include <stdio.h>
+# include <stdlib.h>
 # include <unistd.h>
 # include <math.h>
 # include <float.h>
@@ -176,9 +177,7 @@
 #define STREAM_TYPE double
 #endif
 
-static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
-			b[STREAM_ARRAY_SIZE+OFFSET],
-			c[STREAM_ARRAY_SIZE+OFFSET];
+static STREAM_TYPE	*a, *b, *c;
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
 		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
@@ -187,10 +186,10 @@ static char	*label[4] = {"Copy:      ", "Scale:     ",
     "Add:       ", "Triad:     "};
 
 static double	bytes[4] = {
-    2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
-    2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
     3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
-    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
+    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+    4 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+    4 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
     };
 
 extern double mysecond();
@@ -215,6 +214,9 @@ main()
     double		t, times[4][NTIMES];
 
     /* --- SETUP --- determine precision and check timing --- */
+    a = malloc(sizeof(STREAM_TYPE) * (STREAM_ARRAY_SIZE + OFFSET));
+    b = malloc(sizeof(STREAM_TYPE) * (STREAM_ARRAY_SIZE + OFFSET));
+    c = malloc(sizeof(STREAM_TYPE) * (STREAM_ARRAY_SIZE + OFFSET));
 
     printf(HLINE);
     printf("STREAM version $Revision: 5.10 $\n");
@@ -374,6 +376,10 @@ main()
     /* --- Check Results --- */
     checkSTREAMresults();
     printf(HLINE);
+
+    free(a);
+    free(b);
+    free(c);
 
     return 0;
 }
