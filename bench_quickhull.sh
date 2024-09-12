@@ -23,7 +23,7 @@ mkdir -p "$outdir"
 
 (
 cd code || exit
-make bin/test_quickhull
+BUILD=RELEASE make bin/test_quickhull
 )
 
 bench()

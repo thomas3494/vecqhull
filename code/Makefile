@@ -40,5 +40,8 @@ bin/index2points: src/index2points.c
 bin/text2bin: src/text2bin.c
 	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
 
+bin/cgal_bench: src/cgal_bench.cpp
+	$(CXX) $(FLAGS) $^ -o $@ -lgmp
+
 clean:
 	$(RM) bin/*

@@ -26,7 +26,8 @@ size_t Quickhull(size_t n, Points P)
      * These are guaranteed to be on the convex hull, and will be our
      * first bisection. */
 #ifdef MEASURE_BW
-    read_bw += n * sizeof(Point);
+    /* Most of the time, we read only x-coordinates */
+    read_bw += n * sizeof(Point) / 2;
 #endif
     size_t left, right;
     FindLeftRightV(n, P, &left, &right);
