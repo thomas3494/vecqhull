@@ -935,21 +935,15 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     Point r1s[nthreads][4];
     Point r2s[nthreads][4];
 
-    size_t c1_min = 0;
-    size_t c1_max = n;
-    size_t c2_min = 0;
-    size_t c2_max = n;
-    size_t total1 = 0;
-    size_t total2 = 0;
-    #pragma omp parallel num_threads(nthreads) shared(c1_min, c2_min, c1_max, c2_max, total1, total2)
+    #pragma omp parallel num_threads(nthreads)
     {
         unsigned int me = omp_get_thread_num();
-        size_t c1, c2, my_total1, my_total2;
+        size_t c1, c2, total1, total2;
         Point r1, r2;
 
         size_t start = me * block;
         TriPartititionBlockCyc(n, P, p, r, q,
-                               &r1, &r2, &c1, &c2, &my_total1, &my_total2,
+                               &r1, &r2, &c1, &c2, &total1, &total2,
                                start, block, nthreads);
 
         assert(c1 >= start);
@@ -957,42 +951,26 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         assert(c2 >= start);
         assert(c2 <= n * block * nthreads);
 
-        /* c1, c2 are suprema, so possible larger than n. */
-        c1s[me][0]     = min(c1, n);
-        c2s[me][0]     = min(c2, n);
-        total1s[me][0] = my_total1;
-        total2s[me][0] = my_total2;
+        c1s[me][0]     = c1;
+        c2s[me][0]     = c2;
+        total1s[me][0] = total1;
+        total2s[me][0] = total2;
         r1s[me][0]     = r1;
         r2s[me][0]     = r2;
 
-        #pragma omp barrier
-
-        #pragma omp for reduction(max : c1_max, c2_max) reduction(min : c1_min, c2_min) reduction(+ : total1, total2)
-        for (unsigned int t = 0; t < nthreads; t++) {
-            c1_min = min(c1_min, c1s[t][0]);
-            c2_min = min(c1_min, c1s[t][0]);
-            c1_max = max(c2_min, c2s[t][0]);
-            c2_max = max(c2_min, c2s[t][0]);
-            total1 += total1s[t][0];
-            total2 += total2s[t][0];
-        }
-
-        assert(c1_min <= c1_max);
-        assert(c2_min <= c2_max);
-        assert(c1_min <= c2_max);
-        assert(c2_max <= n);
-
-        /* Change undefined points to recognize them later on. */
-        BlockCycSet(P, me, block, nthreads, c1, min(c1_max, c2),
-                    {DBL_MAX, DBL_MAX});
-        BlockCycSet(P, me, block, nthreads, max(c2_min, c1), c2,
-                    {DBL_MAX, DBL_MAX});
    }
 
     Point r1      = r1s[0][0];
     Point r2      = r2s[0][0];
+    size_t total1 = total1s[0][0];
+    size_t total2 = total2s[0][0];
+    size_t c1_min = c1s[0][0], c1_max = c1s[0][0];
+    size_t c2_min = c2s[0][0], c2_max = c2s[0][0];
 
     for (unsigned int t = 1; t < nthreads; t++) {
+        total1 += total1s[t][0];
+        total2 += total2s[t][0];
+
         /* Argmax over empty set is undefined */
         if ((total1s[t][0] != 0) &&
                 orient(p, r1s[t][0], r) > orient(p, r1, r)) {
@@ -1002,9 +980,46 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                 orient(r, r2s[t][0], q) > orient(r, r2, q)) {
             r2 = r2s[t][0];
         }
+
+        c1_min = min(c1_min, c1s[t][0]);
+        c1_max = max(c1_max, c1s[t][0]);
+        c2_min = min(c2_min, c2s[t][0]);
+        c2_max = max(c2_max, c2s[t][0]);
     }
 
     assert(total1 + total2 <= n);
+
+    /**
+     * When working with index sets, say I = {0, ..., n - 1}, we usually
+     * do not use the upper bound n - 1, but the smallest strict upper
+     * bound n. This is not in I.
+     *
+     * We have extended this to the block-cyclic subsets I_t. So c2s[t][0]
+     * is the smallest strict upper bound ub such that
+     *   ub / block % nthreads == t.
+     * This can be strictly larger than n.
+     */
+    c2_min = min(c2_min, n);
+    c2_max = min(c2_max, n);
+    c1_min = min(c1_min, n);
+    c1_max = min(c1_max, n);
+
+    assert(c1_min <= c1_max);
+    assert(c2_min <= c2_max);
+    assert(c1_min <= c2_max);
+    assert(c2_max <= n);
+
+    /* Change undefined points to recognize them later on. */
+    #pragma omp parallel num_threads(nthreads)
+    {
+        unsigned int t = omp_get_thread_num();
+        size_t c1 = c1s[t][0];
+        size_t c2 = c2s[t][0];
+        BlockCycSet(P, t, block, nthreads, c1, min(c1_max, c2),
+                    {DBL_MAX, DBL_MAX});
+        BlockCycSet(P, t, block, nthreads, max(c2_min, c1), c2,
+                    {DBL_MAX, DBL_MAX});
+    }
 
     size_t i, k;
     if (c1_max >= c2_min) {
