@@ -83,4 +83,8 @@ void TriPartitionP(size_t n, Points P, Point p, Point u, Point q,
                    Point *r1_out, Point *r2_out,
                    size_t *c1_out, size_t *c2_out, unsigned int nthreads);
 
+void TriPartition(size_t n, Points P, Point p, Point u, Point q,
+                  Point *r1_out, Point *r2_out,
+                  size_t *c1_out, size_t *c2_out);
+
 #endif /* QUICKHULL_GUARD */

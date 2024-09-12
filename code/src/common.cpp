@@ -387,6 +387,62 @@ static inline void TriLoopBodyPartial(Vecd px, Vecd py,
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
 }
 
+/**
+ * Invariant: [0, i[   subset S1
+ *            [i, j[   undefined
+ *            [j, k[   not classified
+ *            [k, end[ subset S2
+ * Assumes we have set undefined points to {-DBL_MAX, DBL_MAX}
+ **/
+void TriPartition(size_t n, Points P, Point p, Point r, Point q,
+                  Point *r1_out, Point *r2_out,
+                  size_t *c1_out, size_t *c2_out)
+{
+    Point r1 = {P.x[0], P.y[0]};
+    Point r2 = {P.x[0], P.y[0]};
+    for (size_t i = 1; i < n; i++) {
+        Point u = {P.x[i], P.y[i]};
+        if (orient(p, {u.x - r1.x, u.y - r1.y}, r) > 0) {
+            r1 = u;
+        }
+        if (orient(r, {u.x - r1.x, u.y - r2.y}, q) > 0) {
+            r2 = u;
+        }
+    }
+
+    printf("r1 = (%.17e, %.17e), r2 = (%.17e, %.17e)\n",
+            r1.x, r1.y, r2.x, r2.y);
+
+    *r1_out = r1;
+    *r2_out = r2;
+
+    size_t i = 0;
+    size_t j = 0;
+    size_t k = n;
+
+    while (j < k) {
+        Point u = {P.x[j], P.y[j]};
+
+        if (orient(p, u, r) > 0) {
+            swap(P, i, j);
+            i++;
+            j++;
+        } else if (orient(r, u, q) > 0) {
+            k--;
+            swap(P, j, k);
+        } else {
+            j++;
+        }
+    }
+
+    assert(i <= j);
+    assert(j == k);
+    assert(k <= n);
+
+    *c1_out = i;
+    *c2_out = k;
+}
+
 /* Adapted from
  * https://arxiv.org/pdf/1704.08579
  * and
