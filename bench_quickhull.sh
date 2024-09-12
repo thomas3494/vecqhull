@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #SBATCH --account=csmpi
-#SBATCH --partition=csmpi_long
+#SBATCH --partition=csmpi_fpga_long
 #SBATCH --mem=0
 #SBATCH --cpus-per-task=16
 #SBATCH --time=1:00:00
@@ -33,7 +33,7 @@ bench()
         i=1
         while [ $i -le "$iter" ]
         do
-            ./code/bin/test_quickhull b < data/"$name".bin
+            numactl --interleave all ./code/bin/test_quickhull b < data/"$name".bin
             i=$(( i + 1 ))
         done
     } | awk '{

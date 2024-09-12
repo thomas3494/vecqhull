@@ -643,7 +643,7 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     size_t num_l = CountTrue(d, maskL);
     auto tempxL = Compress(x_coor, maskL);
     auto tempyL = Compress(y_coor, maskL);
-//    printf("Write %zu\n", writeLk + writeLj);
+
     Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
     Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
 
@@ -691,13 +691,6 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
 
     size_t writeRk, writeRj;
     Blockcyc_Sup(start / block, n, block, nthreads, &writeRk, &writeRj);
-//    printf("Last pointer is %zu\n", writeRk + writeRj);
-//    Blockcyc_Sub(writeRk, writeRj, Lanes(d), block, nthreads);
-//    printf("One to the left is %zu\n", writeRk + writeRj);
-//    Blockcyc_Sub(writeRk, writeRj, Lanes(d), block, nthreads);
-//    printf("One to the left of that is %zu\n", writeRk + writeRj);
-//    Blockcyc_Add(writeRk, writeRj, Lanes(d), block, nthreads);
-//    Blockcyc_Add(writeRk, writeRj, Lanes(d), block, nthreads);
 
     size_t last_pointk = writeRk;
     size_t last_pointj = writeRj;
@@ -708,7 +701,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     size_t readRj = writeRj;
 
     assert((readLk + readLj) / block % nthreads == start / block);
-//    printf("Read %zu\n", readLk + readLj);
+
     vLx = LoadU(d, P.x + readLk + readLj);
     vLy = LoadU(d, P.y + readLk + readLj);
     Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
@@ -716,8 +709,8 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
     vRx = LoadU(d, P.x + readRk + readRj);
     vRy = LoadU(d, P.y + readRk + readRj);
+
     assert((readRk + readRj) / block % nthreads == start / block);
-//    printf("Read %zu\n", readRk + readRj);
 
     while (readLk + readLj + Lanes(d) <= readRk + readRj) {
         size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj,
@@ -727,13 +720,15 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
         if (cap_left <= cap_right) {
             x_coor = LoadU(d, P.x + readLk + readLj);
             y_coor = LoadU(d, P.y + readLk + readLj);
+
             assert((readLk + readLj) / block % nthreads == start / block);
-//            printf("Read %zu\n", readLk + readLj);
+
             Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
         } else {
             Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
+
             assert((readRk + readRj) / block % nthreads == start / block);
-//            printf("Read %zu\n", readRk + readRj);
+
             x_coor = LoadU(d, P.x + readRk + readRj);
             y_coor = LoadU(d, P.y + readRk + readRj);
         }
@@ -830,8 +825,6 @@ static void dnf_gap(Points P, size_t start, size_t end,
                     Point p, Point r, Point q,
                     size_t *i_out, size_t *k_out)
 {
-    //printf("gap_start: %zu, gap_end: %zu\n", gap_start, gap_end);
-
     // If this function is applied we are sure to have at least two threads,
     // each thread starts at an offset, so gap_start (c1_max) will always be
     // greater than 0 and gap_start.
@@ -953,10 +946,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                start, block, nthreads);
 
-        //printf("Thread %2u/%2u: S1 = [%3zu, %zu), S2 = [%zu, n), %zu, %zu elem\n"
-        //       "              r1 = (%e, %e), r2 = (%e, %e)\n",
-        //       me, nthreads, start, c1, c2, total1, total2, r1.x, r1.y, r2.x, r2.y);
-
         assert(c1 >= start);
         assert(c1 <= n + block * nthreads);
         assert(c2 >= start);
@@ -1009,13 +998,12 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
      * is the smallest strict upper bound ub such that
      *   ub / block % nthreads == t.
      * This can be strictly larger than n.
-     **/
+     */
     c2_min = min(c2_min, n);
     c2_max = min(c2_max, n);
     c1_min = min(c1_min, n);
     c1_max = min(c1_max, n);
 
-    //printf("c1_min: %zu, c1_max: %zu, c2_min: %zu, c2_max: %zu\n", c1_min, c1_max, c2_min, c2_max);
     assert(c1_min <= c1_max);
     assert(c2_min <= c2_max);
     assert(c1_min <= c2_max);
@@ -1034,7 +1022,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     }
 
     size_t i, k;
-
     if (c1_max >= c2_min) {
         dnf(P, c1_min, c2_max, p, r, q, &i, &k);
     } else {
@@ -1119,7 +1106,6 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                       &r1_left_over, &r2_left_over,
                       &c1_left_over, &c2_left_over);
 
-        //printf("n_off: %zu, c1_left_over: %zu, c2_left_over: %zu\n", n_off, c1_left_over, c2_left_over);
         assert(c1_left_over <= c2_left_over);
         assert(c2_left_over <= n_off);
 

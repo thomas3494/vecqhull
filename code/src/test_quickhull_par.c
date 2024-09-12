@@ -41,15 +41,18 @@ int main(int argc, char **argv)
     Points P = (bench) ? input_b(&n) : input(&n);
 
     #ifdef RAPL_ENERGY
-    struct EnergyC *rapl;
-    if (bench) {
-        rapl = start_rapl();
-    }
+    struct RaplEnergy *rapl;
+    rapl = rapl_start();
     #endif
 
     double start = wtime();
     size_t count = QuickhullP(n, P);
     double stop = wtime();
+
+    #ifdef RAPL_ENERGY
+    struct RaplElapsed *elapsed;
+    elapsed = rapl_elapsed(rapl);
+    #endif
 
     double duration = stop - start;
 
@@ -61,14 +64,29 @@ int main(int argc, char **argv)
     }
 
     if (bench) {
-        printf("%lf\n", duration);
+        if (summary) {
+            printf("runtime-ms");
+            #ifdef RAPL_ENERGY
+            for (uintptr_t i = 0; i < elapsed->len; i++) {
+                printf(" %s", elapsed->keys[i]);
+            }
+            #endif
+            printf("\n");
+        }
 
+        printf("%lf", duration);
         #ifdef RAPL_ENERGY
-        print_energy(rapl);
-        free_energy(rapl);
-        free(rapl);
+        for (uintptr_t i = 0; i < elapsed->len; i++) {
+            printf(" %lf", elapsed->energy[i]);
+        }
         #endif
+        printf("\n");
     }
+
+    #ifdef RAPL_ENERGY
+    elapsed_free(elapsed);
+    rapl_free(rapl);
+    #endif
 
     if (print) {
         PrintPoints(count, P);
