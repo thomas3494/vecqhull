@@ -1,0 +1,268 @@
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000   -c -o mysecond.o mysecond.c
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c mysecond.c
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c stream.f
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.o mysecond.o -o stream_f
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.c -o stream_c
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+This system uses 8 bytes per array element.
+-------------------------------------------------------------
+Array size = 100000000 (elements), Offset = 0 (elements)
+Memory per array = 762.9 MiB (= 0.7 GiB).
+Total memory required = 2288.8 MiB (= 2.2 GiB).
+Each kernel will be executed 10 times.
+ The *best* time for each kernel (excluding the first iteration)
+ will be used to compute the reported bandwidth.
+-------------------------------------------------------------
+Number of Threads requested = 32
+Number of Threads counted = 32
+-------------------------------------------------------------
+Your clock granularity/precision appears to be 1 microseconds.
+Each test below will take on the order of 11427 microseconds.
+   (= 11427 clock ticks)
+Increase the size of the arrays if this shows that
+you are not getting at least 20 clock ticks per test.
+-------------------------------------------------------------
+WARNING -- The above is only a rough guideline.
+For best results, please be sure you know the
+precision of your system timer.
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:           99956.6     0.016231     0.016007     0.016336
+Scale:          96118.3     0.016706     0.016646     0.016756
+Add:           111301.5     0.021664     0.021563     0.021807
+Triad:         110340.1     0.021862     0.021751     0.022062
+-------------------------------------------------------------
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+-------------------------------------------------------------
+
+
+###############################################################################
+Science Cluster
+Job 5115320 for user 'tkoopman'
+Finished at: Thu Sep 12 12:25:24 CEST 2024
+
+Job details:
+============
+
+Name                : allocation
+User                : tkoopman
+Partition           : 
+Nodes               : cn132
+Cores               : 32
+State               : COMPLETED
+Submit              : 2024-09-12T12:25:21
+Start               : 2024-09-12T12:25:22
+End                 : 2024-09-12T12:25:24
+Reserved walltime   : --
+Used walltime       : 00:00:02
+Used CPU time       : 00:00:30 (efficiency: 47.96%)
+% User (Computation): 83.16%
+% System (I/O)      : 16.84%
+Mem reserved        : 16?
+Max Mem used        : 88.00K (cn132)
+Max Disk Write      : 0.00  (cn132)
+Max Disk Read       : 0.00  (cn132)
+
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000   -c -o mysecond.o mysecond.c
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c mysecond.c
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c stream.f
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.o mysecond.o -o stream_f
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.c -o stream_c
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+This system uses 8 bytes per array element.
+-------------------------------------------------------------
+Array size = 100000000 (elements), Offset = 0 (elements)
+Memory per array = 762.9 MiB (= 0.7 GiB).
+Total memory required = 2288.8 MiB (= 2.2 GiB).
+Each kernel will be executed 10 times.
+ The *best* time for each kernel (excluding the first iteration)
+ will be used to compute the reported bandwidth.
+-------------------------------------------------------------
+Number of Threads requested = 32
+Number of Threads counted = 32
+-------------------------------------------------------------
+Your clock granularity/precision appears to be 1 microseconds.
+Each test below will take on the order of 11377 microseconds.
+   (= 11377 clock ticks)
+Increase the size of the arrays if this shows that
+you are not getting at least 20 clock ticks per test.
+-------------------------------------------------------------
+WARNING -- The above is only a rough guideline.
+For best results, please be sure you know the
+precision of your system timer.
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:          151028.2     0.016099     0.015891     0.016282
+Scale:         145498.7     0.016646     0.016495     0.016744
+Add:           109379.8     0.021999     0.021942     0.022126
+Triad:         108878.2     0.022142     0.022043     0.022356
+-------------------------------------------------------------
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+-------------------------------------------------------------
+
+
+###############################################################################
+Science Cluster
+Job 5115346 for user 'tkoopman'
+Finished at: Thu Sep 12 12:37:50 CEST 2024
+
+Job details:
+============
+
+Name                : stream_cn132.sh
+User                : tkoopman
+Partition           : csmpi_fpga_long
+Nodes               : cn132
+Cores               : 32
+State               : RUNNING
+Submit              : 2024-09-12T12:37:48
+Start               : 2024-09-12T12:37:48
+End                 : --
+Reserved walltime   : 01:00:00
+Used walltime       : 00:00:02
+Used CPU time       : 00:00:31 (efficiency: 48.71%)
+% User (Computation): 82.77%
+% System (I/O)      : 17.23%
+Mem reserved        : 125G
+Max Mem used        : 0.00  (,cn132)
+Max Disk Write      : 0.00  (,cn132)
+Max Disk Read       : 0.00  (,cn132)
+
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000   -c -o mysecond.o mysecond.c
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c mysecond.c
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 -c stream.f
+gfortran -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.o mysecond.o -o stream_f
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=100000000 stream.c -o stream_c
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+This system uses 8 bytes per array element.
+-------------------------------------------------------------
+Array size = 100000000 (elements), Offset = 0 (elements)
+Memory per array = 762.9 MiB (= 0.7 GiB).
+Total memory required = 2288.8 MiB (= 2.2 GiB).
+Each kernel will be executed 10 times.
+ The *best* time for each kernel (excluding the first iteration)
+ will be used to compute the reported bandwidth.
+-------------------------------------------------------------
+Number of Threads requested = 32
+Number of Threads counted = 32
+-------------------------------------------------------------
+Your clock granularity/precision appears to be 1 microseconds.
+Each test below will take on the order of 11383 microseconds.
+   (= 11383 clock ticks)
+Increase the size of the arrays if this shows that
+you are not getting at least 20 clock ticks per test.
+-------------------------------------------------------------
+WARNING -- The above is only a rough guideline.
+For best results, please be sure you know the
+precision of your system timer.
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:          149002.8     0.016246     0.016107     0.016421
+Scale:         143858.1     0.016773     0.016683     0.016891
+Add:           145203.9     0.022148     0.022038     0.022223
+Triad:         144131.1     0.022285     0.022202     0.022394
+-------------------------------------------------------------
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+-------------------------------------------------------------
+
+
+###############################################################################
+Science Cluster
+Job 5115349 for user 'tkoopman'
+Finished at: Thu Sep 12 12:43:30 CEST 2024
+
+Job details:
+============
+
+Name                : allocation
+User                : tkoopman
+Partition           : 
+Nodes               : cn132
+Cores               : 32
+State               : COMPLETED
+Submit              : 2024-09-12T12:43:27
+Start               : 2024-09-12T12:43:28
+End                 : 2024-09-12T12:43:29
+Reserved walltime   : --
+Used walltime       : 00:00:01
+Used CPU time       : 00:00:31 (efficiency: 98.08%)
+% User (Computation): 82.42%
+% System (I/O)      : 17.57%
+Mem reserved        : 16?
+Max Mem used        : 72.00K (cn132)
+Max Disk Write      : 0.00  (cn132)
+Max Disk Read       : 0.00  (cn132)
+
+rm -f stream_f stream_c *.o
+gcc -Ofast -march=native -mtune=native -fopenmp -D STREAM_ARRAY_SIZE=400000000 stream.c -o stream_c
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+This system uses 8 bytes per array element.
+-------------------------------------------------------------
+Array size = 400000000 (elements), Offset = 0 (elements)
+Memory per array = 3051.8 MiB (= 3.0 GiB).
+Total memory required = 9155.3 MiB (= 8.9 GiB).
+Each kernel will be executed 10 times.
+ The *best* time for each kernel (excluding the first iteration)
+ will be used to compute the reported bandwidth.
+-------------------------------------------------------------
+Number of Threads requested = 32
+Number of Threads counted = 32
+-------------------------------------------------------------
+Your clock granularity/precision appears to be 1 microseconds.
+Each test below will take on the order of 45851 microseconds.
+   (= 45851 clock ticks)
+Increase the size of the arrays if this shows that
+you are not getting at least 20 clock ticks per test.
+-------------------------------------------------------------
+WARNING -- The above is only a rough guideline.
+For best results, please be sure you know the
+precision of your system timer.
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:          144445.9     0.066518     0.066461     0.066609
+Scale:         143706.2     0.067145     0.066803     0.067479
+Add:           141536.6     0.090547     0.090436     0.090606
+Triad:         141661.7     0.090421     0.090356     0.090477
+-------------------------------------------------------------
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+-------------------------------------------------------------
+
+
+###############################################################################
+Science Cluster
+Job 5115356 for user 'tkoopman'
+Finished at: Thu Sep 12 12:47:54 CEST 2024
+
+Job details:
+============
+
+Name                : stream_cn132.sh
+User                : tkoopman
+Partition           : csmpi_fpga_long
+Nodes               : cn132
+Cores               : 32
+State               : COMPLETED
+Submit              : 2024-09-12T12:47:48
+Start               : 2024-09-12T12:47:48
+End                 : 2024-09-12T12:47:54
+Reserved walltime   : 01:00:00
+Used walltime       : 00:00:06
+Used CPU time       : 00:02:04 (efficiency: 64.81%)
+% User (Computation): 82.80%
+% System (I/O)      : 17.20%
+Mem reserved        : 125G
+Max Mem used        : 92.00K (cn132)
+Max Disk Write      : 0.00  (cn132)
+Max Disk Read       : 0.00  (cn132)
+
