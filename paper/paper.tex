@@ -1,11 +1,37 @@
-\documentclass[sigplan, screen]{acmart}
+\documentclass[draft]{lipics-v2021}
+
+\bibliographystyle{plainurl}
+
+\title{Engineering a Planar Convex Hull Algorithm}
+
+\author{Thomas Koopman}{Radboud University, the Netherlands}{thomas.koopman@ru.nl}{https://orcid.org/0009-0001-1031-7226}{}
+
+\author{Jordy Aaldering}{Radboud University, the Netherlands}{jordy.aaldering@ru.nl}{https://orcid.org/0009-0001-3018-5152}{}
+
+\author{Bernard van Gastel}{Radboud University, the Netherlands}{bernard.vangastel@ru.nl}{https://orcid.org/0000-0002-0974-4634}{}
+
+\authorrunning{T.J. Koopman, J. Aaldering, B. van Gastel} %TODO mandatory. First: Use abbreviated first/middle names. Second (only in severe cases): Use first author plus 'et al.'
+
+\Copyright{Thomas Koopman, Jordy Aaldering, Bernard van Gastel} %TODO mandatory, please use full first names. LIPIcs license is "CC-BY";  http://creativecommons.org/licenses/by/3.0/
+
+\ccsdesc[100]{\textcolor{red}{Replace ccsdesc macro with valid one}} %TODO mandatory: Please choose ACM 2012 classifications from https://dl.acm.org/ccs/ccs_flat.cfm 
+
+\keywords{Dummy keyword}
+
+%\relatedversion{} %optional, e.g. full version hosted on arXiv, HAL, or other respository/website
+%\relatedversiondetails[linktext={opt. text shown instead of the URL}, cite=DBLP:books/mk/GrayR93]{Classification (e.g. Full Version, Extended Version, Previous Version}{URL to related version} %linktext and cite are optional
+
+%\supplement{}%optional, e.g. related research data, source code, ... hosted on a repository like zenodo, figshare, GitHub, ...
+%\supplementdetails[linktext={opt. text shown instead of the URL}, cite=DBLP:books/mk/GrayR93, subcategory={Description, Subcategory}, swhid={Software Heritage Identifier}]{General Classification (e.g. Software, Dataset, Model, ...)}{URL to related version} %linktext, cite, and subcategory are optional
+
+%\acknowledgements{I want to thank \dots}%optional
 
 \usepackage{algorithm}
 \usepackage{algorithmicx}
 \usepackage[noend]{algpseudocode}
 \usepackage{amsmath}
 \usepackage{amsthm}
-%\usepackage{amssymb} already in acmart
+\usepackage{amssymb}
 \usepackage{calculator}
 \usepackage{calc}
 \usepackage{graphicx}
@@ -30,42 +56,11 @@
 \sisetup{exponent-mode = fixed, fixed-exponent=0,
          round-mode = figures, round-precision = 2}
 
-\settopmatter{printfolios=true}
-
 \begin{document}
 
-\title{Engineering a Planar Convex Hull Algorithm}
-
-\author{Thomas Koopman}
-\orcid{0009-0001-1031-7226}
-\affiliation{%
-  \institution{Radboud University}
-  \city{Nijmegen}
-  \country{Netherlands}
-}
-\email{thomas.koopman@ru.nl}
-
-\author{Jordy Aaldering}
-\orcid{0009-0001-3018-5152}
-\affiliation{%
-  \institution{Radboud University}
-  \city{Nijmegen}
-  \country{Netherlands}
-}
-\email{jordy.aaldering@ru.nl}
-
-\author{Bernard van Gastel}
-\orcid{0000-0002-0974-4634}
-\affiliation{%
-  \institution{Radboud University}
-  \city{Nijmegen}
-  \country{Netherlands}
-}
-\email{bernard.vangastel@ru.nl}
+\maketitle
 
 \input{abstract}
-
-\maketitle
 
 \input{intro}
 
@@ -85,7 +80,6 @@
 
 \input{conclusion}
 
-\bibliographystyle{ACM-Reference-Format}
 \bibliography{paper}
 
 \end{document}

@@ -4,6 +4,8 @@ The PBBS benchmark consists of three data sets. Each of these consists of
 $10^8$ points drawn from different distributions. Even though all data sets
 are $1.6$ GB in size, the algorithm behaves very differently on them.
 
+\tkcomment{TODO: do this properly. Also, do Qhull, CGAL give indices
+           or points? If they give indices too, why?}
 As a baseline we have considered Qhull, the algorithms of CGAL,
 and the implementation of PBBS. Some preliminary testing shows that the
 implementation of PBBS is the fastest by a large margin. In
@@ -80,7 +82,7 @@ in $S_2$, and on the subsequent partition almost all points are discarded.
 The convex hull has only $4$ points.
 
 \begin{figure}[ht]
-    \includegraphics[width=\columnwidth]{figures/rust-kuzmin.png}
+    \includegraphics[width=0.3\columnwidth]{./figures/rust-kuzmin.png}
     \caption{The Kuzmin dataset of $10^8$ points. The first partition only
              moves $r_1$. The second partition eliminates all remaining points.}
     \label{fig:kuzmin}
@@ -285,29 +287,24 @@ For the Kuzmin, almost all points belong in either $S_1$ or $S_2$, so
 this dataset is the exception. Similarly, the branches are easy to predict,
 giving BlockQuickhull little advantage over the approach of
 PBBS. For this reason, we see in Table~\ref{table:runtime} that the deeper
-the recursion, the larger our lead over PBBS becomes. The only reason that
-BlockQuickhull is faster on Kuzmin because Clang is able to do some 
-vectorization in the partition.
+the recursion, the larger our lead over PBBS becomes. 
 
 Kuzmin has to get its data from RAM in all its passes, so we can expect
-no more than $38$ GB/s of bandwidth. We see in Table~\ref{table:bw} that
-we get $90\%$ of this. The Hoare Partition does no swaps because the
-partitions are so uneven. This is not the case for Disk and Circle. However, 
-they do have the advantage of a deep, symmetric recursion. This ensures
-that subproblems will eventually fit in cache, which has a higher bandwidth
-than RAM. As Circle has a deeper recursion and eliminates less elements,
-it gets a higher bandwidth than Disk, but Table~\ref{table:ef_bw} shows it
-gets a lower effective bandwidth.
+at most the bandwidth obtained by the STREAM benchmark. We see in 
+Table~\ref{table:bw} that we are able to get close ($97\%$) of this 
+on cn125, but only get $67\%$ on cn132. The larger machine has more work to do 
+in the cleanup phase, and has less total runtime to amortize the overheads over. 
+Circle has a deep recursion, which means it can use the caches effectively. This
+leads to high bandwidth, but low effective bandwidth (Table~\ref{table:ef_bw}.
+It is notable that we obtain lower bandwidth for Disk. In contrast to Kuzmin,
+it is unpredictable whether we have to load from the left- or righthand side
+in the partition. This may have a negative effect on the hardware prefetcher.
 
 The single-threaded benchmarks are not bound by memory bandwidth, yet we
 see in Table~\ref{table:flops} that we achieve only a fraction of the
-peak compute rate. This is partially caused by work that is not counted
-towards the flop count, such as finding the left-most and right-most point,
-and finding $r_1$, $r_2$. Another reason is that Clang is not able to use
-SIMD instructions to their fullest potential. It vectorizes over \texttt{xmm} 
-registers, which can only do two double precision elements at a time, whereas 
-the available \texttt{zmm} registers can do eight. Auto-vectorization is a hard 
-problem, GCC (version 14.1.1) is not able to do it at all.
+peak compute rate. This is because much of the execution time is in instructions
+not counted as flops, such as the compression of vector registers and other
+data movement instructions.
 
 % Generated with scripts
 
