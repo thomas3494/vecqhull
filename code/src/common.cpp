@@ -912,6 +912,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         return;
     }
 
+    /* To ensure blocks do not share cachelines */
     uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) /
                                 sizeof(double)) % points_per_cacheline;
     assert(n >= n_off);
@@ -919,6 +920,7 @@ void TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     P.x += n_off;
     P.y += n_off;
 
+    /* To ensure readL and readR can always load contiguous memory */
     size_t n_end = n % Lanes(d);
     assert(n >= n_end);
     n -= n_end;
