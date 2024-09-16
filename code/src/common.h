@@ -64,6 +64,27 @@ inline Vec<ScalableTag<double>> orientV(Vec<ScalableTag<double>> px,
     return (px - qx) * (uy - qy) - (py - qy) * (ux - qx);
 }
 
+/**
+ * True if u1 > u2
+ **/
+inline bool greater_orient(Point p, Point u1, Point u2, Point q)
+{
+    return ((p.y - q.y) * (u1.x - u2.x) - (p.x - q.x) * (u1.y - u2.y) > 0);
+}
+
+inline Mask<ScalableTag<double>> greater_orientV(Vec<ScalableTag<double>> px,
+                                                 Vec<ScalableTag<double>> py,
+                                                 Vec<ScalableTag<double>> u1x,
+                                                 Vec<ScalableTag<double>> u1y,
+                                                 Vec<ScalableTag<double>> u2x,
+                                                 Vec<ScalableTag<double>> u2y,
+                                                 Vec<ScalableTag<double>> qx,
+                                                 Vec<ScalableTag<double>> qy)
+{
+    const ScalableTag<double> d;
+    return ((py - qy) * (u1x - u2x) - (px - qx) * (u1y - u2y) > Zero(d));
+}
+
 /* Scalar */
 void FindLeftRight(size_t n, Points P, size_t *left_out, size_t *right_out);
 
