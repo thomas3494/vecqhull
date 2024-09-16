@@ -1,0 +1,337 @@
+\section{Quickhull}
+
+\tkcomment{TODO: make the notation consistent}
+
+The Quickhull algorithm makes use of two important facts illustrated by 
+Figure~\ref{fig:quickhull}. Firstly, if $p$, $q$ are in the convex hull, then 
+any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
+hull as well. Secondly, any point within the triangle $pqu$ is not in the 
+convex hull. Only the points to the left of $pu$ and to the right of $uq$ 
+still need to be considered.
+
+\begin{figure}[ht]
+\resizebox{\columnwidth}{!}{%
+        \begin{tikzpicture}
+            \node (26_32) at (5.200, 6.400) {$\bullet$};
+            \node (26_9) at (5.200, 1.800) {$\bullet$};
+            \node (27_49) at (5.400, 9.800) {$\bullet$};
+            \node (37_18) at (7.400, 3.600) {$\bullet$};
+            \node (9_18) at (1.800, 3.600) {$\bullet$};
+            \node (16_14) at (3.200, 2.800) {$\bullet$};
+            \node (40_13) at (8.000, 2.600) {$\bullet$};
+            \node (22_17) at (4.400, 3.400) {$\bullet$};
+            \node (34_2) at (6.800, 0.400) {$\bullet$};
+            \node (37_4) at (7.400, 0.800) {$\bullet$};
+            \node (8_13) at (1.600, 2.600) {$\bullet$};
+            \node (r1) at (2.000, 0.200) {$r_1$};
+            \node (38_19) at (7.600, 3.800) {$\bullet$};
+            \node (r2) at (9.400, 9.200) {$r_2$};
+            \node (38_25) at (7.600, 5.000) {$\bullet$};
+            \node (11_16) at (2.200, 3.200) {$\bullet$};
+            \node (7_38) at (1.400, 7.600) {$\bullet$};
+            \node (27_37) at (5.400, 7.400) {$\bullet$};
+            \node (37_14) at (7.400, 2.800) {$\bullet$};
+            \node (5_48) at (1.000, 9.600) {$\bullet$};
+            \node (34_21) at (6.800, 4.200) {$\bullet$};
+            \node (14_24) at (2.800, 4.800) {$\bullet$};
+            \node (35_36) at (7.000, 7.200) {$\bullet$};
+            \node (43_21) at (8.600, 4.200) {$\bullet$};
+            \node (40_30) at (8.000, 6.000) {$\bullet$};
+            \node (25_48) at (5.000, 9.600) {$\bullet$};
+            \node (46_37) at (9.200, 7.400) {$\bullet$};
+            \node (q) at (9.800, 6.800) {$q$};
+            \node (8_49) at (1.600, 9.800) {$\bullet$};
+            \node (31_48) at (6.200, 9.600) {$\bullet$};
+            \node (26_42) at (5.200, 8.400) {$\bullet$};
+            \node (14_35) at (2.800, 7.000) {$\bullet$};
+            \node (32_41) at (6.400, 8.200) {$\bullet$};
+            \node (22_21) at (4.400, 4.200) {$\bullet$};
+            \node (7_29) at (1.400, 5.800) {$\bullet$};
+            \node (19_41) at (3.800, 8.200) {$\bullet$};
+            \node (1_33) at (0.200, 6.600) {$\bullet$};
+            \node (16_38) at (3.200, 7.600) {$\bullet$};
+            \node (19_11) at (3.800, 2.200) {$\bullet$};
+            \node (9_12) at (1.800, 2.400) {$\bullet$};
+            \node (42_36) at (8.400, 7.200) {$\bullet$};
+            \node (10_38) at (2.000, 7.600) {$\bullet$};
+            \node (25_12) at (5.000, 2.400) {$\bullet$};
+            \node (22_33) at (4.400, 6.600) {$\bullet$};
+            \node (13_5) at (2.600, 1.000) {$\bullet$};
+            \node (31_39) at (6.200, 7.800) {$\bullet$};
+            \node (p) at (0.000, 9.400) {$p$};
+            \node (24_32) at (4.800, 6.400) {$\bullet$};
+            \node (40_47) at (8.000, 9.400) {$\bullet$};
+            \node (6_47) at (1.200, 9.400) {$\bullet$};
+
+            \graph {(p) --[red] (q)};
+            \graph {(p) --[red] (r1)};
+            \graph {(r1) --[red] (q)};
+            \graph {(p) --[red] (r2)};
+            \graph {(r2) --[red] (q)};
+        \end{tikzpicture}
+    }
+    \caption{The points $p$ and $q$ are the left-most and 
+             right-most points, and therefore in the hull. The points $r_1$,
+             $r_2$ are furthest from the line $pq$, and also in the hull. Any
+             point within the two triangles cannot be in the convex hull.}
+    \label{fig:quickhull}
+\end{figure}
+
+This idea can be applied recursively to find the complex hull, starting with
+the left-most (highest in case of ties), and right-most (lowest in case of ties)
+points.
+
+\subsection{Orientation}
+
+While it is intuitively clear what points are to the left of a line $pr$, or
+inside a triangle $prq$, it is not straightforward to define this precisely.
+For this we need a quantity called the orientation of three points.
+
+Given three points $p, q, u$ in the plane, we have vectors
+\[
+    \vec{pq} = \begin{pmatrix}
+        q_x - p_x \\
+        q_y - p_y
+    \end{pmatrix},
+    \vec{qu} = \begin{pmatrix}
+        u_x - q_x \\
+        u_y - q_y
+    \end{pmatrix}
+\]
+
+representing oriented line segments between the points, as depicted in
+Figure~\ref{fig:orient1}.
+
+\begin{figure}[ht]
+    \begin{tikzpicture}
+        \node (p) at (0, 0) {$p$};
+        \node (q) at (1, 2) {$q$};
+        \node (u) at (2, 1) {$u$};
+
+        \graph {(p) ->["$\vec{pq}$"] (q)};
+        \graph {(q) ->["$\vec{qu}$"] (u)};
+    \end{tikzpicture}
+    \caption{Two vectors induced by three points in the plane. The path 
+             $p, q, u$ makes a right-hand turn.}
+    \label{fig:orient1}
+\end{figure}
+
+We can view these as vectors in 3D by adding a $z$-coordinate $0$. Now the
+cross product $\vec{pq} \times \vec{qu}$ is equal to 
+
+\[
+    \begin{pmatrix}
+        0 \\
+        0 \\
+        (q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)
+    \end{pmatrix}.
+\]
+
+We write $orient(p, q, u)$ for the $z$-coordinate
+$(q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)$. 
+If the cross-product points up, so if $orient(p, q, u) > 0$, we make a left-hand 
+turn going from $p$ to $q$ to $u$, and if this is negative, we make a right-hand
+turn. If it is zero, the points $p, q, u$ are colinear. 
+
+We colloquially say $u$ is to the left of $pq$ if $orient(p, u, q) > 0$.
+
+The authors of \cite{quickerthanqhull} point out that we can use the 
+orientation to find the point furthest from the line segment $pq$. 
+The norm of the outerproduct
+$|\vec{pq} \times \vec{qu}| = |orient(p, q, u)|$ is the area of the
+parallelogram spanned by $\vec{pq}$ and $\vec{qu}$. This is also equal to
+the length of $pq$ multiplied by the distance from $u$ to the line through 
+$pq$. So $|orient(p, q, u)| > |orient(p, q, u')|$ if and only if $u$ is further
+from $pq$ than $u'$. 
+
+\begin{figure}[ht]
+    \begin{tikzpicture}
+        \node (p) at (0, 0)  {$p$};
+        \node (q) at (1, 2)  {$q$};
+        \node (u) at (2, 1)  {$u$};
+        \node (c) at (1, -1) {};
+
+        \graph {(p) ->["$\vec{pq}$"] (q)};
+        \graph {(q) ->["$\vec{qu}$"] (u)};
+        \graph {(p) --               (c)};
+        \graph {(c) --               (u)};
+    \end{tikzpicture}
+    \caption{Parallellogram spanned by $\vec{pq}$ and $\vec{qu}$. 
+             The area of this parallelogram is $|orient(p, q, u)|$.}
+    \label{fig:orient2}
+\end{figure}
+
+This cumulates into Algorithm~\ref{alg:quickhull_basic}. By slight abuse
+of notation, we assume that the sets are ordered, so that in $\{p\} \cup \{q\}$,
+the point $q$ comes after $p$.
+
+\begin{algorithm}[ht]
+\begin{algorithmic}[1]
+    \caption{Quickhull algorithm}\label{alg:quickhull_basic}
+    \Require $P: $ set of points in $\mathbb{R}^2$,
+    \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
+    \State Let $p$ be the left-most point in $P$, $q$ the right-most point.
+    \State Let $S_1 = \{u \in P \ | \ orient(p, u, q) > 0\}$
+    \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, q)$.
+    \State Let $S_2 = \{u \in P \ | \ orient(q, u, p) > 0\}$
+    \State Let $r_2 = \argmax\limits_{u \in S_2}orient(q, u, p)$.
+    \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $q$}
+            $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $q$, $r_2$, $p$}.
+    \Function{FindHull}{P, p, r, q}
+        \If{$|P| \leq 1$}
+            \State Let $H = P$.
+        \Else
+            \State Let $S_1 = \{u \in P \ | \ orient(p, u, r) > 0\}$.
+            \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, r)$.
+            \State Let $S_2 = \{u \in P \ | \ orient(r, u, q) > 0\}$
+            \State Let $r_2 = \argmax\limits_{u \in S_2}orient(r, u, q)$.
+            \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $r$}
+                   $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $r$, $r_2$, $q$}
+        \EndIf
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Accuracy}
+
+\tkcomment{Before I forget: right now we need orient(p, p, q) = orient(p, q, q) = 0
+in order for the algorithm to terminate. This forces us to evaluate the orientation
+the way described. However, this leads to us finding only 10\% of the points out of
+100M. That is laughable as we have 53 bits of mantissa. By finding the index of $r_i$
+instead of $r_i$, we can eliminate $r_i$ before calling the recursive function,
+which guarantees algorithm termination. We then have free reign into evalulating
+orient accurately. There is much literature on this. Search terms: Kahan Determinant
+FMA, accurate sign}
+
+%\subsection{Performance Considerations}
+%
+%In order to optimize Quickhull, we focussed on the following three optimisation
+%goals: minimising data movement, minimizing cache misses, and effective 
+%parallelisation.
+%
+%\subsubsection{Data Movement}
+%
+%Doing computations quicker is only helpful so long as the input and output of
+%these computations can be written from and to memory quickly enough. Our
+%machine can compute $c = ab + c$ with one core a factor $4.625$ faster than it 
+%can load $a, b, c$ from RAM and store the updated $c$ to RAM. Using more cores
+%increases the number of computations we can do linearly, but they all share the
+%same bandwidth to RAM. For this reason it is important to keep data that is used
+%multiple times in cache.
+%
+%% 2 avx2 fma instructions per clock, 3.7 GHz, so 2 * 4 * 3.7 G instructions per 
+%% second. Bandwidth is 204.8 GB/s, and we need 4 * 8 = 32 bytes per fma
+%% 2 * 4 * 3.7 / (204.8 / 32) = 4.625
+%
+%The recursive structure of the algorithm ensures that eventually the subproblem 
+%of \texttt{FindHull} will fit in cache.
+%
+%Caches always read and write contiguous blocks of memory to RAM and other caches,
+%called cachelines. For our architecture, this is $64$ bytes. A single point is 
+%$16$ bytes, so if a subset $S_1$ of $P$ is strung out across memory, only 
+%$\frac{16}{64} = \frac{1}{4}$th of the cache contains useful data. For this 
+%reason, we choose to permute $P$ so that it first contains $S_1$ and then $S_2$.
+%This allows us to fully use the cache. Furthermore, the CPU will speculatively
+%load memory into its caches to hide latency, and does so best on linear
+%(or regularly strided) accesses. We also compute $r_1$, $r_2$ in the same pass
+%to avoid data movement.
+%
+%PBBS choses to keep the indices instead. The higher the reuse, the more this
+%will hurt performance because of the cache behaviour.
+%
+%\subsubsection{Branch Misses}
+%
+%Branching, that is jumping to a different section of the code depending on 
+%whether a condition is met, is expensive. For this reason, CPUs will try to
+%predict the branch and speculatively. If this prediction is wrong, this
+%speculative execution has to be rolled back. This is known to be very expensive
+%in the context of the algorithmically similar Quickhull \cite{}. Fortunately,
+%branches can be avoided with clever programming \cite{}.
+%
+%Inspired by ips4o \cite{}, we first permute $P$ such that each block of $b$
+%points ($64$ in our implementation) contains points that exclusively belong
+%to $S_1$ or $S_2$. Unlike ips4o, we do not need to keep points that belong in
+%neither $S_1$ or $S_2$, and we do not in order to save the costs of writing them
+%back. The full implementation can be found in \cite{}, but the key idea is
+%the code fragment in Listing~\ref{listing:tripartition}.
+%
+%\begin{lstlisting}[gobble=8, captionpos=b, label=listing:tripartition,
+%                   caption={Branchless Local Classification.}]
+%        while (i < n && count1 < block_size && count2 < block_size) {
+%            double o1 = orient(p, P[i], r);
+%            double o2 = orient(r, P[i], q);
+%
+%            buf1[count1] = P[i];
+%            buf2[count2] = P[i];
+%            orient1[count1] = o1;
+%            orient2[count2] = o2;
+%
+%            count1 += (o1 > 0);
+%            count2 += (o2 > 0 && !(o1 > 0));
+%
+%            i++;
+%        }
+%\end{lstlisting}
+%
+%Here \texttt{buf1} is a block that will contain the elements of $P$ that belong
+%in $S_1$. We always write \texttt{P[i]}, but only increase the location we write
+%to if it belongs in $S_1$, ensuring that points not belonging in \texttt{buf1}
+%will be overwritten. This is all branchless, and we fill \texttt{buf1}, 
+%\texttt{buf2} up this way. Whenever a buffer is full, we write it back to $P$.
+%Due to round-off errors in floating point arithmetic, it can happen that 
+%\texttt{o1 > 0} and \texttt{o2 > 0}. To avoid out-of-bound accesses, we only 
+%put \texttt{P[i]} in \texttt{buf2} if it is not in \texttt{buf1}.
+%
+%After this phase, we reorder the blocks using a Hoare partitioning, and insert
+%the points in \texttt{buf1}, \texttt{buf2} that had not been written back yet. 
+%This means we pass over the data twice, while it is possible to do it in one,
+%by using the Dutch Flag Algorithm, increasing the demand on the bandwidth.
+%However, this method is cache-friendly as we always read and write entire 
+%cachelines, and points not in $S_1$, $S_2$ are not considered for the second 
+%pass. This ensures very reasonable performance in practice.
+%
+%\tkcomment{TODO Quantify 'very reasonable'}
+%
+%\subsubsection{Parallelism}
+%
+%We need to both parallelise the partitioning, as well as the recursive calls.
+%
+%\begin{figure}[h]
+%    \resizebox{\columnwidth}{!}{%
+%        \begin{tikzpicture}
+%            \foreach \i in {0, ..., 12} {
+%                \draw (\i, 0) rectangle (\i + 1, 1);
+%            }
+%            \foreach \i in {0, ..., 3} {
+%                \node at (3 * \i + 0.5, 0.5) {$?$};
+%            }
+%
+%            \draw[->, red, thick] (5, -0.1) -- (5, -0.9);
+%            \node at (7, -0.5) {Local Classification};
+%
+%            \foreach \i in {0, ..., 12} {
+%                \draw (\i, -2) rectangle (\i + 1, -1);
+%            }
+%            \foreach \i in {0, ..., 2} {
+%                \node at (3 * \i + 0.5, -1.5) {$S_{?}$};
+%            }
+%            \foreach \i in {3} {
+%                \node at (3 * \i + 0.5, -1.5) {$-$};
+%            }
+%
+%            \draw[->, red, thick] (5, -2.1) -- (5, -2.9);
+%            \node at (7, -2.5) {Hoare Permutation};
+%
+%            \foreach \i in {0, ..., 12} {
+%                \draw (\i, -4) rectangle (\i + 1, -3);
+%            }
+%            \node at (0.5, -3.5) {$S_1$};
+%            \node at (3.5, -3.5) {$S_1$};
+%            \node at (6.5, -3.5) {$S_2$};
+%            \node at (9.5, -3.5) {$-$};
+%        \end{tikzpicture}
+%    }
+%    \caption{Parallel Partitioning by thread 0 out of 3 threads total}
+%\end{figure}
+%
+%

@@ -1,0 +1,138 @@
+\section{Introduction}
+
+The convex hull of a set of points in $\mathbb{R}^2$, can be intuitively 
+understood as follows: Put a nail in a piece of wood at each point. Then span 
+an elastic band around these nails. The resulting polygon is the convex hull of 
+the points.
+
+This is a fundamental algorithm in Computational Geometry with applications
+in .... 
+
+To be more precise, a convex combination of points $x_1, \cdots, x_n$ is a 
+weighted average $\lambda_1 \cdot x_1 + \cdots \lambda_n \cdot x_n$, 
+$\lambda_i \geq 0, \sum_{i = 1}^n \lambda_i = 1$. A set that is closed under
+taking convex combinations is called convex. The convex hull of a set $X$ is
+the set of all its convex combinations and denoted with $CH(X)$. For $X$
+a finite set, the convex hull is a polytope with vertices in $X$.
+
+In the planar case we would like to know the vertices and edges of this polygon.
+An efficient data structure for this is to list the vertices in
+(counter-)clockwise order, because the edges are given by adjacent vertices.
+
+Finding this is the convex hull problem. There exist many algorithms for this
+\cite{}, of which we find Quickhull to be the fastest (see 
+Section~\ref{sec:perf}). This algorithm is similar to Quicksort in that
+it recursively splits the points into two sets. Unlike Quicksort however,
+more points than just the pivot may be discarded. Moreover, we are not
+free to choose the pivot, which turns out to make parallelisation challenging.
+Nonetheless, we can adept recent insights from the sorting community to engineer
+a fast quickhull implementation for shared memory computers.
+
+We make the following contributions.
+
+\begin{itemize}
+    \item We present a vectorized algorithm for extracting two disjoint 
+          subsets in-place.
+    \item We parallelise this algorithm in a bandwidth-friendly manner.
+%    \item We improve the accuracy of the quickhull algorithm without using
+%          more precise types. \tkcomment{TODO}
+\end{itemize}
+
+\iffalse
+
+The convex hull of a set of points in $\mathbb{R}^2$, can be intuitively 
+understood as follows: Put a nail in a piece of wood at each point. Then span 
+an elastic band around these nails. The resulting shape is the convex hull of 
+the points. This has as property that a line between any two points on the 
+convex hull is contained within it.
+
+To be more precise, a set $C \subseteq \mathbb{R}^2$ is convex, whenever
+it is closed under taking weighted averages. In other words,
+if $c_1, \cdots, c_n \in C$, then for any weights 
+$\lambda_1, \cdots, \lambda_n$, satisfying $\lambda_i \geq 0$, 
+$\lambda_1 + \cdots + \lambda_n = 1$, also
+$\lambda_1 c_1 + \cdots + \lambda_n c_n$ must be in $C$.
+
+The convex hull of a bounded set $P \subseteq \mathbb{R}^2$ is the smallest 
+convex set $CH(P)$ containing $P$. This set can be described by a finite 
+number of points, its vertices. There exist $c_1, \cdots, c_n$ such that
+$$CH(P) = \left\{\sum_{i = 1}^n \lambda_i c_i \ | \ 
+                      \lambda_i \geq 0, \sum_{i = 1}^n \lambda_i = 1\right\}$$
+
+Figure~\ref{fig:convex_hull} shows an example of a set of $30$ points, having 
+a convex hull of $8$ points.
+
+\begin{figure}[ht]
+\resizebox{\columnwidth}{!}{%
+        \begin{tikzpicture}
+            \node (26_32) at (5.200, 6.400) {$\bullet$};
+            \node (26_9) at (5.200, 1.800) {$\bullet$};
+            \node (27_49) at (5.400, 9.800) {$\bullet$};
+            \node (37_18) at (7.400, 3.600) {$\bullet$};
+            \node (9_18) at (1.800, 3.600) {$\bullet$};
+            \node (16_14) at (3.200, 2.800) {$\bullet$};
+            \node (40_13) at (8.000, 2.600) {$\bullet$};
+            \node (22_17) at (4.400, 3.400) {$\bullet$};
+            \node (34_2) at (6.800, 0.400) {$\bullet$};
+            \node (37_4) at (7.400, 0.800) {$\bullet$};
+            \node (8_13) at (1.600, 2.600) {$\bullet$};
+            \node (10_1) at (2.000, 0.200) {$\bullet$};
+            \node (38_19) at (7.600, 3.800) {$\bullet$};
+            \node (47_46) at (9.400, 9.200) {$\bullet$};
+            \node (38_25) at (7.600, 5.000) {$\bullet$};
+            \node (11_16) at (2.200, 3.200) {$\bullet$};
+            \node (7_38) at (1.400, 7.600) {$\bullet$};
+            \node (27_37) at (5.400, 7.400) {$\bullet$};
+            \node (37_14) at (7.400, 2.800) {$\bullet$};
+            \node (5_48) at (1.000, 9.600) {$\bullet$};
+            \node (34_21) at (6.800, 4.200) {$\bullet$};
+            \node (14_24) at (2.800, 4.800) {$\bullet$};
+            \node (35_36) at (7.000, 7.200) {$\bullet$};
+            \node (43_21) at (8.600, 4.200) {$\bullet$};
+            \node (40_30) at (8.000, 6.000) {$\bullet$};
+            \node (25_48) at (5.000, 9.600) {$\bullet$};
+            \node (46_37) at (9.200, 7.400) {$\bullet$};
+            \node (49_34) at (9.800, 6.800) {$\bullet$};
+            \node (8_49) at (1.600, 9.800) {$\bullet$};
+            \node (31_48) at (6.200, 9.600) {$\bullet$};
+            \node (26_42) at (5.200, 8.400) {$\bullet$};
+            \node (14_35) at (2.800, 7.000) {$\bullet$};
+            \node (32_41) at (6.400, 8.200) {$\bullet$};
+            \node (22_21) at (4.400, 4.200) {$\bullet$};
+            \node (7_29) at (1.400, 5.800) {$\bullet$};
+            \node (19_41) at (3.800, 8.200) {$\bullet$};
+            \node (1_33) at (0.200, 6.600) {$\bullet$};
+            \node (16_38) at (3.200, 7.600) {$\bullet$};
+            \node (19_11) at (3.800, 2.200) {$\bullet$};
+            \node (9_12) at (1.800, 2.400) {$\bullet$};
+            \node (42_36) at (8.400, 7.200) {$\bullet$};
+            \node (10_38) at (2.000, 7.600) {$\bullet$};
+            \node (25_12) at (5.000, 2.400) {$\bullet$};
+            \node (22_33) at (4.400, 6.600) {$\bullet$};
+            \node (13_5) at (2.600, 1.000) {$\bullet$};
+            \node (31_39) at (6.200, 7.800) {$\bullet$};
+            \node (0_47) at (0.000, 9.400) {$\bullet$};
+            \node (24_32) at (4.800, 6.400) {$\bullet$};
+            \node (40_47) at (8.000, 9.400) {$\bullet$};
+            \node (6_47) at (1.200, 9.400) {$\bullet$};
+
+            \graph {(0_47) ->[red] (8_49)};
+            \graph {(8_49) ->[red] (27_49)};
+            \graph {(27_49) ->[red] (47_46)};
+            \graph {(47_46) ->[red] (49_34)};
+            \graph {(49_34) ->[red] (37_4)};
+            \graph {(37_4) ->[red] (34_2)};
+            \graph {(34_2) ->[red] (10_1)};
+            \graph {(10_1) ->[red] (1_33)};
+            \graph {(1_33) ->[red] (0_47)};
+        \end{tikzpicture}
+    }
+    \caption{Convex hull of $50$ points.}
+    \label{fig:convex_hull}
+\end{figure}
+
+The convex hull problem is to find these vertices, and list them
+in clockwise order. This problem is of direct practical application in many
+areas, such as image processing \cite{Rosenfeld69}, pattern recognition
+\cite{Duda74}, and packing problems \cite{Freeman75}.
+\fi

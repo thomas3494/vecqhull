@@ -1,0 +1,20 @@
+\section{Conclusion}
+
+On the performance side, we have seen that applying branchless techniques
+from sorting can significantly speed up Quickhull. 
+Our performance evaluation shows that there is much room for improvement still. 
+One improvement that would mostly benefit the sequential implementation would 
+be to vectorize by hand. For the multithreaded implementation it 
+becomes important to reduce the number of passes over the data. This could be 
+done by identifying more points on the hull in one pass, and employing 
+techniques similar to super scalar samplesort \cite{ssss} or ips4o \cite{ips4o}. 
+However, except the very first pass, it is not clear how to 
+identify more points on the hull in one pass. Furthermore, our partition 
+scheme potentially iterates over the data twice. It may be possible to write a 
+branchless partition that only iterates over the data once.
+
+On the energy side, ...
+
+Akl-Toussaint could be implemented by a IPS4O-like idea to reduce the
+number of passes. Finds left, right, top, bottom, smallest and largest
+sum and difference of x and y coordinates.

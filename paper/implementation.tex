@@ -1,0 +1,48 @@
+\section{Implementation}
+
+Parallelise both the recursion and the partitioning.
+Divide processors over subsets in ratio, switch to sequential when $n_t \leq 1$.
+memmove to keep it in-place.
+
+In order to minimise bandwidth use, we also weave in the compution 
+of $r_1$ and $r_2$ during the partition.
+
+\iffalse
+\subsection{Optimisation considerations}
+
+\tkcomment{Computational density is very low, so need to care about bandwidth 
+(scales poorly with multiple cores), and branch misprediction (scales well).}
+
+\subsection{Quickhull}
+
+PBBS stores sets of points by a large array $P$ of all points, and an index 
+array $I$. So the actual $P$ being considered is $\{P[i] \ | \ i \in I\}$.
+
+In order to find $S_1$, $S_2$, Hoare's partition scheme is used on $I$, where
+$i$ is considered to be than the pivot if $P[i]$ is above $pr_k$, smaller than
+the pivot if $P[i]$ is below $r_kq$, and equal to the pivot if it is in the
+triangle $pr_kq$. This is a fine approach for datasets where almost all points
+are eliminated in the first few sweeps. When this is not the case however,
+it makes inefficient use of the bandwidth. The subsets of points are scattered
+throughout memory, which hurts the cache utilisation. Hoare's partitioning
+method is also susceptible to branch misses. On some datasets these were as
+large as $6\%$.
+
+Instead, we decided to not use indices, but to swap the points of $P$. This 
+ensures that $S_1$, $S_2$ are in contiguous memory, making 
+
+\tkcomment{It does not make any sense PBBS is faster. It traverses the entire array to find $r$, instead of passing it into the next iteration like we do, which is inefficient. It also partitions the entire array twice, while we know that points to the left of $pr$ are also the the left of $rq$. And it does not use block partitioning. It uses and extra index array instead of checking at the same time. Maybe the swap is more expensive for points than indices?}
+
+\subsubsection{Optimising Quickhull}
+
+Optimisation goals: optimising branch misses and bandwidth utilisation.
+
+We need to use a branchless partition. A branchless tri-partitioning does not 
+exist to the best of my knowledge.
+
+As for the first pass there are always little elements 'equal' to the degenerate
+triangle, we could do a >= and <=, keep track of the p and q indices, and cut
+those out. For Kuzmin, that would save one pass over the data. The elements on
+the line not equal to $p$ or $q$ are deleted next pass anyway. That would shave
+off 20 ms.
+\fi

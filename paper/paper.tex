@@ -1,14 +1,18 @@
-\documentclass{article}
+\documentclass[sigplan, screen]{acmart}
 
 \usepackage{algorithm}
+\usepackage{algorithmicx}
 \usepackage[noend]{algpseudocode}
 \usepackage{amsmath}
 \usepackage{amsthm}
-\usepackage{amssymb}
+%\usepackage{amssymb} already in acmart
 \usepackage{calculator}
+\usepackage{calc}
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{hyperref}
+\usepackage{pgfplotstable}
+\usepackage{siunitx}
 \usepackage{tikz}
 \usetikzlibrary{graphs}
 \usetikzlibrary{quotes}
@@ -22,15 +26,66 @@
 \DeclareMathOperator*{\argmax}{argmax}
 \DeclareMathOperator*{\argmin}{argmin}
 
-\title{On the Energy Portability of Vectorized Quickhull}
+\pgfplotstableset{col sep = comma, fixed zerofill, precision=3, fixed}
+\sisetup{exponent-mode = fixed, fixed-exponent=0,
+         round-mode = figures, round-precision = 2}
+
+\settopmatter{printfolios=true}
 
 \begin{document}
 
+\title{Engineering a Planar Convex Hull Algorithm}
+
+\author{Thomas Koopman}
+\orcid{0009-0001-1031-7226}
+\affiliation{%
+  \institution{Radboud University}
+  \city{Nijmegen}
+  \country{Netherlands}
+}
+\email{thomas.koopman@ru.nl}
+
+\author{Jordy Aaldering}
+\orcid{0009-0001-3018-5152}
+\affiliation{%
+  \institution{Radboud University}
+  \city{Nijmegen}
+  \country{Netherlands}
+}
+\email{jordy.aaldering@ru.nl}
+
+\author{Bernard van Gastel}
+\orcid{0000-0002-0974-4634}
+\affiliation{%
+  \institution{Radboud University}
+  \city{Nijmegen}
+  \country{Netherlands}
+}
+\email{bernard.vangastel@ru.nl}
+
+\input{abstract}
+
 \maketitle
 
-\include{abstract}
+\input{intro}
 
-\bibliographystyle{plain}
+\input{preliminaries}
+
+\input{quickhull}
+
+\input{optimising}
+
+\input{partition}
+
+\input{implementation}
+
+\input{comparison}
+
+\input{accuracy}
+
+\input{conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
 \bibliography{paper}
 
 \end{document}
