@@ -300,6 +300,9 @@ It is notable that we obtain lower bandwidth for Disk. In contrast to Kuzmin,
 it is unpredictable whether we have to load from the left- or righthand side
 in the partition. This may have a negative effect on the hardware prefetcher.
 
+\tkcomment{TODO: Disabling hyperthreading is superior almost everywhere, except
+for the recursion of Kuzmin}
+
 The single-threaded benchmarks are not bound by memory bandwidth, yet we
 see in Table~\ref{table:flops} that we achieve only a fraction of the
 peak compute rate. This is because much of the execution time is in instructions

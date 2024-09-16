@@ -10,7 +10,7 @@ fi
 
 n="$1"
 prec="$2"
-result="$2"
+result="$3"
 
 print_backend()
 {
@@ -22,11 +22,11 @@ print_backend()
 }
 
 echo "Imp,Kuzmin,kuzminstd,Circle,circlestd,Disk,diskstd"
-printf '%s,' "VecQuickhull"
-print_backend quickhull
 printf '%s,' "PBBS"
 print_backend pbbs_serial
-printf '%s,' "VecQuickhull par"
-print_backend quickhull_par
+printf '%s,' "VecQuickhull"
+print_backend quickhull
 printf '%s,' "PBBS par"
 print_backend pbbs_multi
+printf '%s,' "VecQuickhull par"
+print_backend quickhull_par
