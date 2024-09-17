@@ -36,9 +36,9 @@ bench()
                    a[i] = b[i];
                }
              } END {
-               printf "%f, %f", a[1], sqrt(q[1] / NR);
+               printf "%f,%f", a[1], sqrt(q[1] / NR);
                for (i = 2; i <= NF; i++) {
-                   printf ", %f, %f", a[i], sqrt(q[i] / NR);
+                   printf ",%f,%f", a[i], sqrt(q[i] / NR);
                }
                print "";
              }' > "${outdir}/${name}_pbbs_serial.csv"
