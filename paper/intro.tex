@@ -13,14 +13,14 @@ weighted average $\lambda_1 \cdot x_1 + \cdots \lambda_n \cdot x_n$,
 $\lambda_i \geq 0, \sum_{i = 1}^n \lambda_i = 1$. A set that is closed under
 taking convex combinations is called convex. The convex hull of a set $X$ is
 the set of all its convex combinations and denoted with $CH(X)$. For $X$
-a finite set, the convex hull is a polytope with vertices in $X$.
+a finite set, the convex hull is a polygon with vertices in $X$.
 
-In the planar case we would like to know the vertices and edges of this polygon.
-An efficient data structure for this is to list the vertices in
-(counter-)clockwise order, because the edges are given by adjacent vertices.
+A polygon is determined by its vertices and edges, which we can efficiently
+store by listing the vertices in (counter-)clockwise order. The edges are given 
+by adjacent vertices.
 
-Finding this is the convex hull problem. There exist many algorithms for this
-\cite{}, of which we find Quickhull to be the fastest (see 
+Computing this list is the convex hull problem. There exist many algorithms for 
+this \cite{}, of which we find Quickhull to be the fastest (see
 Section~\ref{sec:perf}). This algorithm is similar to Quicksort in that
 it recursively splits the points into two sets. Unlike Quicksort however,
 more points than just the pivot may be discarded. Moreover, we are not
@@ -34,6 +34,10 @@ We make the following contributions.
     \item We present a vectorized algorithm for extracting two disjoint 
           subsets in-place.
     \item We parallelise this algorithm in a bandwidth-friendly manner.
+    \item We evaluate the performance in terms of runtime, energy, memory usage
+          % and accuracy
+          on two different platforms. 
+          % Can we get access to a NEON or SVE machine?
 %    \item We improve the accuracy of the quickhull algorithm without using
 %          more precise types. \tkcomment{TODO}
 \end{itemize}

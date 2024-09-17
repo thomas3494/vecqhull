@@ -5,7 +5,7 @@
 The Quickhull algorithm makes use of two important facts illustrated by 
 Figure~\ref{fig:quickhull}. Firstly, if $p$, $q$ are in the convex hull, then 
 any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
-hull as well. Secondly, any point within the triangle $pqu$ is not in the 
+hull as well. Secondly, any point within the triangle $puq$ is not in the 
 convex hull. Only the points to the left of $pu$ and to the right of $uq$ 
 still need to be considered.
 
@@ -89,13 +89,13 @@ For this we need a quantity called the orientation of three points.
 
 Given three points $p, u, q$ in the plane, we have vectors
 \[
-    \vec{pq} = \begin{pmatrix}
-        q_x - p_x \\
-        q_y - p_y
+    \vec{pu} = \begin{pmatrix}
+        u_x - p_x \\
+        u_y - p_y
     \end{pmatrix},
-    \vec{qu} = \begin{pmatrix}
-        u_x - q_x \\
-        u_y - q_y
+    \vec{uq} = \begin{pmatrix}
+        q_x - u_x \\
+        q_y - u_y
     \end{pmatrix}
 \]
 
@@ -103,35 +103,53 @@ representing oriented line segments between the points, as depicted in
 Figure~\ref{fig:orient1}.
 
 \begin{figure}[ht]
+    \begin{subfigure}{0.45\textwidth}
     \begin{tikzpicture}
         \node (p) at (0, 0) {$p$};
-        \node (q) at (1, 2) {$q$};
-        \node (u) at (2, 1) {$u$};
+        \node (u) at (1, 2) {$u$};
+        \node (q) at (2, 1) {$q$};
 
-        \graph {(p) ->["$\vec{pq}$"] (q)};
-        \graph {(q) ->["$\vec{qu}$"] (u)};
+        \graph {(p) ->["$\vec{pu}$"] (u)};
+        \graph {(u) ->["$\vec{uq}$"] (q)};
     \end{tikzpicture}
     \caption{Two vectors induced by three points in the plane. The path 
-             $p, q, u$ makes a right-hand turn.}
+             $p, u, q$ makes a right-hand turn.}
     \label{fig:orient1}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.45\textwidth}
+    \begin{tikzpicture}
+        \node (p) at (0, 0)  {$p$};
+        \node (u) at (1, 2)  {$u$};
+        \node (q) at (2, 1)  {$q$};
+        \node (c) at (1, -1) {};
+
+        \graph {(p) ->["$\vec{pu}$"] (u)};
+        \graph {(u) ->["$\vec{uq}$"] (q)};
+        \graph {(p) --               (c)};
+        \graph {(c) --               (q)};
+    \end{tikzpicture}
+    \caption{Parallellogram spanned by $\vec{pu}$ and $\vec{uq}$. 
+             The area of this parallelogram is $|orient(p, u, q)|$.}
+    \label{fig:orient2}
+    \end{subfigure}
 \end{figure}
 
 We can view these as vectors in 3D by adding a $z$-coordinate $0$. Now the
-cross product $\vec{pq} \times \vec{qu}$ is equal to 
+cross product $\vec{pu} \times \vec{uq}$ is equal to 
 
 \[
     \begin{pmatrix}
         0 \\
         0 \\
-        (q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)
+        (u_x - p_x) \cdot (q_y - u_y) - (u_y - p_y) \cdot (q_x - u_x)
     \end{pmatrix}.
 \]
 
 We write $orient(p, q, u)$ for the $z$-coordinate
 $(q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)$. 
-If the cross-product points up, so if $orient(p, q, u) > 0$, we make a left-hand 
-turn going from $p$ to $q$ to $u$, and if this is negative, we make a right-hand
-turn. If it is zero, the points $p, q, u$ are colinear. 
+If the cross-product points up, so if $orient(p, u, q) > 0$, we make a left-hand 
+turn going from $p$ to $u$ to $q$, and if this is negative, we make a right-hand
+turn. If it is zero, the points $p, u, q$ are colinear. 
 
 We colloquially say $u$ is to the left of $pq$ if $orient(p, u, q) > 0$.
 
@@ -141,28 +159,26 @@ The norm of the outerproduct
 $|\vec{pq} \times \vec{qu}| = |orient(p, q, u)|$ is the area of the
 parallelogram spanned by $\vec{pq}$ and $\vec{qu}$. This is also equal to
 the length of $pq$ multiplied by the distance from $u$ to the line through 
-$pq$. So $|orient(p, q, u)| > |orient(p, q, u')|$ if and only if $u$ is further
-from $pq$ than $u'$. \tkcomment{For greater accuracy we probably want to compare
-orient(p, q, u - u'). orient is well-conditioned, but |orient(p, u, q)| could
-be far larger than |orient(p, u - u', q)|. So even if the relative error of
-orient(p, u, q) is small, it could lead to a misclassification.}
+$pq$. So $|orient(p, u, q)| > |orient(p, u', q)|$ if and only if $u$ is further
+from $pq$ than $u'$. % In Section~\ref{} we explain how to most accurately
+% decide whether this condition is true.
 
-\begin{figure}[ht]
-    \begin{tikzpicture}
-        \node (p) at (0, 0)  {$p$};
-        \node (q) at (1, 2)  {$q$};
-        \node (u) at (2, 1)  {$u$};
-        \node (c) at (1, -1) {};
-
-        \graph {(p) ->["$\vec{pq}$"] (q)};
-        \graph {(q) ->["$\vec{qu}$"] (u)};
-        \graph {(p) --               (c)};
-        \graph {(c) --               (u)};
-    \end{tikzpicture}
-    \caption{Parallellogram spanned by $\vec{pq}$ and $\vec{qu}$. 
-             The area of this parallelogram is $|orient(p, q, u)|$.}
-    \label{fig:orient2}
-\end{figure}
+%\begin{figure}[ht]
+%    \begin{tikzpicture}
+%        \node (p) at (0, 0)  {$p$};
+%        \node (u) at (1, 2)  {$u$};
+%        \node (q) at (2, 1)  {$q$};
+%        \node (c) at (1, -1) {};
+%
+%        \graph {(p) ->["$\vec{pu}$"] (u)};
+%        \graph {(u) ->["$\vec{uq}$"] (q)};
+%        \graph {(p) --               (c)};
+%        \graph {(c) --               (q)};
+%    \end{tikzpicture}
+%    \caption{Parallellogram spanned by $\vec{pu}$ and $\vec{uq}$. 
+%             The area of this parallelogram is $|orient(p, u, q)|$.}
+%    \label{fig:orient2}
+%\end{figure}
 
 This cumulates into Algorithm~\ref{alg:quickhull_basic}. By slight abuse
 of notation, we assume that the sets are ordered, so that in $\{p\} \cup \{q\}$,
