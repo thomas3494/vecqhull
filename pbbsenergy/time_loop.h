@@ -23,9 +23,11 @@ void time_loop(int rounds, double delay, F initf, G runf, H endf) {
     struct RaplElapsed *elapsed;
     elapsed = rapl_elapsed(rapl);
 
+    double total_energy = 0;
     for (uintptr_t i = 0; i < elapsed->len; i++) {
-        printf(" %lf", elapsed->energy[i]);
+        total_energy += elapsed->energy[i];
     }
+    printf(" %lf\n", total_energy);
 
     elapsed_free(elapsed);
     rapl_free(rapl);

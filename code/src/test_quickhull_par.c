@@ -64,21 +64,13 @@ int main(int argc, char **argv)
     }
 
     if (bench) {
-        if (summary) {
-            printf("runtime-ms");
-            #ifdef RAPL_ENERGY
-            for (uintptr_t i = 0; i < elapsed->len; i++) {
-                printf(" %s", elapsed->keys[i]);
-            }
-            #endif
-            printf("\n");
-        }
-
         printf("%lf", duration);
         #ifdef RAPL_ENERGY
+        double total_energy = 0;
         for (uintptr_t i = 0; i < elapsed->len; i++) {
-            printf(" %lf", elapsed->energy[i]);
+            total_energy += elapsed->energy[i];
         }
+        printf(" %lf", total_energy);
         #endif
         printf("\n");
     }
