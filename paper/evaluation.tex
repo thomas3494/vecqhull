@@ -47,9 +47,9 @@ two. We have done this by running the programs under
 We summarize the systems in Table~\ref{tab:system}. There can be a significant
 gap between the bandwidth the RAM is capable off, and what is achievable in
 practice. The STREAM benchmark \cite{McCalpin95} is a collection of simple
-functions that can be used to measure what bandwidths can be achieved in
-practice. We obtained the best results by pinning threads to cores and disabling
-hyperthreading.
+functions that can be used to measure what bandwidths can be attained 
+practically. We obtained the best results by pinning threads to cores and 
+disabling hyperthreading.
 
 \begin{table}[ht]
     \caption{Theoretical and practical capabilities of test systems. All four
@@ -101,7 +101,7 @@ a circle, and we classify roughly one in ten points as lying on the convex
 hull. Both implementations find the same points up to $10^7$ points, but on 
 $10^8$ they disagree on $20$ points. These are points $u$ for which 
 $\text{orient}(p, u, r_1) > 0$ and $\text{orient}(r_2, u, q) > 0$ which
-can only happen due to roundoff error. We have made the arbitrary decision
+can only happen due to round-off error. We have made the arbitrary decision
 to put these in $S_1$.
 
 \subsubsection{Disk}
@@ -199,7 +199,7 @@ it differs between machines.
 For this reason we also compute the bandwidth. Assuming a double is $8$ bytes,
 this is $8n$ bytes for finding the left-most and right-most points. At each
 recursive call, we have $8(n + |S_1| + |S_2|)$ bytes for the partition,
-and $8|CH(S_2)|$ bytes to place $CH(S_1)$ and $CH(S_2)$ next to eachother in
+and $8|CH(S_2)|$ bytes to place $CH(S_1)$ and $CH(S_2)$ next to each other in
 memory. This is $5.6$ GB, $73$ GB, $7.2$ GB for Kuzmin, Circle, and Disk.
 
 The data movement of our algorithm is not optimal. Take for example Disk:
@@ -250,17 +250,17 @@ It also inhibits vectorization.
 
 For the Kuzmin, almost all points belong in either $S_1$ or $S_2$, so
 this dataset is the exception. Similarly, the branches are easy to predict,
-giving BlockQuickhull little advantage over the approach of
+giving VecQuickhull little advantage over the approach of
 PBBS. For this reason, we see in Table~\ref{table:runtime} that the deeper
 the recursion, the larger our lead over PBBS becomes. 
 
 Kuzmin has to get its data from RAM in all its passes, so we can expect
 at most the bandwidth obtained by the STREAM benchmark. We see in 
-Table~\ref{table:bw} that we are able to get close ($83\%$) of this 
-on cn125, but only get $67\%$ on cn132. The larger machine has more work to do 
-in the cleanup phase, and has less total runtime to amortize the overheads over. 
+Table~\ref{table:bw} that we get closer ($83\%$) to STREAM 
+on cn125, than on cn132 ($67\%$). We speculate that the hardware prefetcher
+is less effective on our more complicated access pattern.
 Circle has a deep recursion, which means it can use the caches effectively. This
-leads to high bandwidth, but low effective bandwidth (Table~\ref{table:ef_bw}.
+leads to high bandwidth, but low effective bandwidth (Table~\ref{table:ef_bw}).
 
 % Generated with scripts
 
@@ -316,7 +316,7 @@ VecQuickhull par,2.80e+01, 6.25e+02, 4.26e+00, 6.19e+01, 1.77e+01, 1.01e+02
 in Latex. Maybe write a C program that generates Latex code.}
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull runtime in seconds on cn125.}
+    \caption{VecQuickhull and PBBS Quickhull runtime in seconds on cn125.}
     \label{table:runtime}
     \pgfplotstabletypeset[
         columns={Imp,Kuzmin,Circle,Disk},
@@ -329,7 +329,7 @@ in Latex. Maybe write a C program that generates Latex code.}
 \end{table}
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull runtime in seconds on cn132.}
+    \caption{VecQuickhull and PBBS Quickhull runtime in seconds on cn132.}
     \label{table:runtimenuma}
     \pgfplotstabletypeset[
         columns={Imp,Kuzmin,Circle,Disk},
@@ -342,7 +342,7 @@ in Latex. Maybe write a C program that generates Latex code.}
 \end{table}
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull bandwidth in GB/s on cn125.}
+    \caption{VecQuickhull and PBBS Quickhull bandwidth in GB/s on cn125.}
     \label{table:bw}
     \pgfplotstabletypeset[
         columns={Imp,Kuzmin,Circle,Disk},
@@ -355,7 +355,7 @@ in Latex. Maybe write a C program that generates Latex code.}
 \end{table}
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull bandwidth in GB/s on cn132.}
+    \caption{VecQuickhull and PBBS Quickhull bandwidth in GB/s on cn132.}
     \label{table:bwnuma}
     \pgfplotstabletypeset[
         columns={Imp,Kuzmin,Circle,Disk},
@@ -369,7 +369,7 @@ in Latex. Maybe write a C program that generates Latex code.}
 
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull effective bandwidth in GB/s
+    \caption{VecQuickhull and PBBS Quickhull effective bandwidth in GB/s
              on cn125.}
     \label{table:ef_bw}
     \pgfplotstabletypeset[
@@ -386,7 +386,7 @@ in Latex. Maybe write a C program that generates Latex code.}
 \end{table}
 
 \begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull effective bandwidth in GB/s
+    \caption{VecQuickhull and PBBS Quickhull effective bandwidth in GB/s
              on cn132.}
     \label{table:ef_bwnuma}
     \pgfplotstabletypeset[

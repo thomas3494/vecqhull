@@ -10,7 +10,7 @@ to modify the more efficient algorithms for bipartitioning.
 \subsection{Sequential Partitioning}
 
 It is possible to vectorize the partitioning of Quicksort using a compress
-instruction that is present in the AVX-512 instruction set \cite{Bramas17},
+instruction that is in the AVX-512 instruction set \cite{Bramas17},
 or with a portable software implementation of this instruction \cite{Blacher22}.
 This is done by reading a vector of values from either the left or right of the
 array, partitioning this vector in registers, and then writing it back to the
@@ -103,7 +103,7 @@ a sequential cleanup step. This approach is inspired by \cite{francis92}.
 
 \subsubsection{Local Partition}
 
-We first divide the points over the threads in block-cyclic fashion 
+We first divide the points over the threads in a block-cyclic distribution.
 (Figure~\ref{fig:blockcycl}) according to some block parameter $b$.
 
 \begin{figure}[ht]
@@ -154,9 +154,8 @@ $|S_1| : |S_2|$ is roughly equal to $|S_1 \cap P^{(t)}| : |S_2 \cap P^{(t)}|$.
 This means that the $c_1^{(t)}$s are expected to be close to each other, and
 the global $c_1$, and likewise for the $c_2^{(t)}$s. This even holds for $P$
 not random, but already a convex hull listed in clockwise, or counter-clockwise
-order. In these common cases permuting 
-$[c_1^{min}, c_1^{\max}) \cup [c_2^{min}, c_2^{\max})$ is not performance
-critical and can be done with a stock Dutch National Flag Algorithm.
+order. As it is not performance-critical, a naive Dutch National Flag Algorithm 
+suffices for permuting $[c_1^{min}, c_1^{\max}) \cup [c_2^{min}, c_2^{\max})$.
 
 \begin{figure}[ht]
     \resizebox{\columnwidth}{!}{%

@@ -1,7 +1,7 @@
 \section{Quickhull}
 
 The Quickhull algorithm makes use of two important facts illustrated by 
-Figure~\ref{fig:quickhull}. Firstly, if $p$, $q$ are in the convex hull, then 
+Figure~\ref{fig:quickhull}. First, if $p$, $q$ are in the convex hull, then 
 any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
 hull as well. Secondly, any point within the triangle $puq$ is not in the 
 convex hull. Only the points to the left of $pu$ and to the right of $uq$ 
@@ -127,7 +127,7 @@ Figure~\ref{fig:orient1}.
         \graph {(p) --               (c)};
         \graph {(c) --               (q)};
     \end{tikzpicture}
-    \caption{Parallellogram spanned by $\vec{pu}$ and $\vec{uq}$. 
+    \caption{Parallelogram spanned by $\vec{pu}$ and $\vec{uq}$. 
              The area of this parallelogram is $|orient(p, u, q)|$.}
     \label{fig:orient2}
     \end{subfigure}
@@ -149,13 +149,13 @@ We write $orient(p, q, u)$ for the $z$-coordinate
 $(q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)$. 
 If the cross-product points up, so if $orient(p, u, q) > 0$, we make a left-hand 
 turn going from $p$ to $u$ to $q$, and if this is negative, we make a right-hand
-turn. If it is zero, the points $p, u, q$ are colinear. 
+turn. If it is zero, the points $p, u, q$ are collinear. 
 
 We colloquially say $u$ is to the left of $pq$ if $orient(p, u, q) > 0$.
 
 The authors of \cite{quickerthanqhull} point out that we can use the 
 orientation to find the point furthest from the line segment $pq$. 
-The norm of the outerproduct
+The norm of the outer product
 $|\vec{pq} \times \vec{qu}| = |orient(p, q, u)|$ is the area of the
 parallelogram spanned by $\vec{pq}$ and $\vec{qu}$. This is also equal to
 the length of $pq$ multiplied by the distance from $u$ to the line through 

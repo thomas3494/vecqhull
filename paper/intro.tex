@@ -21,12 +21,12 @@ by adjacent vertices.
 
 Computing this list is the convex hull problem. There exist many algorithms for 
 this \cite{}, of which we find Quickhull to be the fastest (see
-Section~\ref{sec:perf}). This algorithm is similar to Quicksort in that
+Section~\ref{sec:perf}). This algorithm resembles Quicksort in that
 it recursively splits the points into two sets. Unlike Quicksort however,
 more points than just the pivot may be discarded. Moreover, we are not
 free to choose the pivot, which turns out to make parallelisation challenging.
 Nonetheless, we can adept recent insights from the sorting community to engineer
-a fast quickhull implementation for shared memory computers.
+a fast Quickhull implementation for shared memory computers.
 
 We make the following contributions.
 

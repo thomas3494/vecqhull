@@ -33,7 +33,7 @@ execute instructions, and on how quickly we can get the necessary data loaded
 in registers. We call applications limited by the former \textit{compute-bound},
 and applications limited by the latter \textit{memory-bound}.
 
-Random Access Memory (\textit{RAM}) is a seperate from the CPU. The bus
+Random Access Memory (\textit{RAM}) is a separate from the CPU. The bus
 connecting the CPU to RAM is shared by all cores. So while using more cores
 linearly increases the computational power available, it does not increase
 the available bandwidth. This can turn problems that are compute-bound on
@@ -54,9 +54,9 @@ Accuracy is an important part in engineering a numerical algorithm.
 
 \subsubsection{Numerical Stability}
 
-Input of scientific algorithms is rarely exact. It can be perturbed by roundoff
-errors, but also simply by inaccurate physical measurements. Ideally, this does
-not affect the result too much. Let $x$ is the input of an algorithm and 
+Input of scientific algorithms is rarely exact. It can be perturbed by 
+round-off errors, but also by inaccurate physical measurements. Ideally, this 
+does not affect the result too much. Let $x$ is the input of an algorithm and 
 $f(x)$ the output. We may have a perturbed input $\hat{x}$ and perturbed output
 $\hat{f(x)}$. The backward error is ...
 
