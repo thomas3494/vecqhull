@@ -749,12 +749,7 @@ void TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     /* [readL, readR[ is empty because they both start at something
      * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
      * a time. */
-    if (!(readLk + readLj == readRk + readRj)) {
-        fprintf(stderr, "n = %zu\n", n);
-        fprintf(stderr, "readLk = %zu, readLj = %zu, readRk = %zu, readRj = %zu\n",
-             readLk, readLj, readRk, readRj);
-        abort();
-    }
+    assert(readLk + readLj == readRk + readRj);
 
     /* vL, vR */
     assert((writeRk + writeRj) / block % nthreads == start / block);
