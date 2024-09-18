@@ -1,7 +1,5 @@
 \section{Quickhull}
 
-\tkcomment{TODO: make the notation consistent}
-
 The Quickhull algorithm makes use of two important facts illustrated by 
 Figure~\ref{fig:quickhull}. Firstly, if $p$, $q$ are in the convex hull, then 
 any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
@@ -10,7 +8,8 @@ convex hull. Only the points to the left of $pu$ and to the right of $uq$
 still need to be considered.
 
 \begin{figure}[ht]
-\resizebox{\columnwidth}{!}{%
+    \centering
+    \resizebox{0.5\columnwidth}{!}{%
         \begin{tikzpicture}
             \node (26_32) at (5.200, 6.400) {$\bullet$};
             \node (26_9) at (5.200, 1.800) {$\bullet$};
@@ -132,6 +131,7 @@ Figure~\ref{fig:orient1}.
              The area of this parallelogram is $|orient(p, u, q)|$.}
     \label{fig:orient2}
     \end{subfigure}
+    \caption{A visualisation of the orientation of three points.}
 \end{figure}
 
 We can view these as vectors in 3D by adding a $z$-coordinate $0$. Now the
@@ -160,25 +160,7 @@ $|\vec{pq} \times \vec{qu}| = |orient(p, q, u)|$ is the area of the
 parallelogram spanned by $\vec{pq}$ and $\vec{qu}$. This is also equal to
 the length of $pq$ multiplied by the distance from $u$ to the line through 
 $pq$. So $|orient(p, u, q)| > |orient(p, u', q)|$ if and only if $u$ is further
-from $pq$ than $u'$. % In Section~\ref{} we explain how to most accurately
-% decide whether this condition is true.
-
-%\begin{figure}[ht]
-%    \begin{tikzpicture}
-%        \node (p) at (0, 0)  {$p$};
-%        \node (u) at (1, 2)  {$u$};
-%        \node (q) at (2, 1)  {$q$};
-%        \node (c) at (1, -1) {};
-%
-%        \graph {(p) ->["$\vec{pu}$"] (u)};
-%        \graph {(u) ->["$\vec{uq}$"] (q)};
-%        \graph {(p) --               (c)};
-%        \graph {(c) --               (q)};
-%    \end{tikzpicture}
-%    \caption{Parallellogram spanned by $\vec{pu}$ and $\vec{uq}$. 
-%             The area of this parallelogram is $|orient(p, u, q)|$.}
-%    \label{fig:orient2}
-%\end{figure}
+from $pq$ than $u'$.
 
 This cumulates into Algorithm~\ref{alg:quickhull_basic}. By slight abuse
 of notation, we assume that the sets are ordered, so that in $\{p\} \cup \{q\}$,
@@ -210,24 +192,3 @@ the point $q$ comes after $p$.
     \EndFunction
 \end{algorithmic}
 \end{algorithm}
-
-\subsection{Accuracy}
-
-\tkcomment{Before I forget: right now we need orient(p, p, q) = orient(p, q, q) = 0
-in order for the algorithm to terminate. This forces us to evaluate the orientation
-the way described. However, this leads to us finding only 10\% of the points out of
-100M. That is laughable as we have 53 bits of mantissa. By finding the index of $r_i$
-instead of $r_i$, we can eliminate $r_i$ before calling the recursive function,
-which guarantees algorithm termination. We then have free reign into evalulating
-orient accurately. There is much literature on this. Search terms: Kahan Determinant
-FMA, accurate sign}
-
-\tkcomment{I think this one should work reasonably well}
-
-We have
-
-$$orient(p, u, q) > orient(p, u', q) \iff $$ 
-
-$$(p_y - q_y) \cdot (u_x - u'_x) - (p_x - q_x) \cdot (u_y - u'_y) > 0$$
-
-

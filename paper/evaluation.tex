@@ -38,17 +38,20 @@ has powerful vector instructions, a modest amount of cores and memory, and a
 simple memory architecture. 
 
 The second, \textit{cn132}, has less powerful vector instructions and needs
-to emulate the compress of ... It has two CPUs which gives it more cores
-and memory bandwidth. Memory is local to one of the two CPUs, so we need
-to make sure allocations are equally distributed between the two. We have
-done this by running the programs under \texttt{numactl --interleaved all}.
+to implement the compression instruction in software. It has two CPUs which
+gives it more cores and memory bandwidth. Memory is local to one of the two
+CPUs, so we need to make sure allocations are equally distributed between the
+two. We have done this by running the programs under
+\texttt{numactl --interleaved all}.
 
 We summarize the systems in Table~\ref{tab:system}. There can be a significant
 gap between the bandwidth the RAM is capable off, and what is achievable in
-practice. The STREAM benchmark \cite{} is a collection of simple functions
-that can be used to measure what bandwidths can be achieved in practice.
+practice. The STREAM benchmark \cite{McCalpin95} is a collection of simple
+functions that can be used to measure what bandwidths can be achieved in
+practice. We obtained the best results by pinning threads to cores and disabling
+hyperthreading.
 
-\begin{table}
+\begin{table}[ht]
     \caption{Theoretical and practical capabilities of test systems. All four
              STREAM benchmarks obtained the same bandwidth.}
     \label{tab:system}
@@ -57,11 +60,11 @@ that can be used to measure what bandwidths can be achieved in practice.
         \hline                                              
         CPU                        & Epyc 7313 $(\times 2)$ 
                                            & Xeon E-2378    \\
-        Vector extension           & avx2  & avx512         \\
+        Vector extension           & AVX2  & AVX-512        \\
         Frequency (GHz)            & 3.7   & 2.6            \\
         Peak compute rate (Gflops) & 1894  & 346            \\
         Theoretic bandwidth (GB/s) & 204.8 & 51.2           \\ 
-        STREAM (GB/s)              & 140   & 38             \\ 
+        STREAM (GB/s)              & 140   & 41             \\ 
     \end{tabular}
 \end{table}
 
@@ -69,9 +72,6 @@ that can be used to measure what bandwidths can be achieved in practice.
 
 There is a large difference between runtime of Quickhull on the different 
 datasets.
-To gain insight, we make a rough estimation of the amount of work required.
-\tkcomment{I suppose we can measure this, but the work per pass over the
-data may also be interesting.}
 
 \subsubsection{Kuzmin}
 
@@ -82,7 +82,8 @@ in $S_2$, and on the subsequent partition almost all points are discarded.
 The convex hull has only $4$ points.
 
 \begin{figure}[ht]
-    \includegraphics[width=0.3\columnwidth]{./figures/rust-kuzmin.png}
+    \centering
+    \includegraphics[width=0.5\textwidth]{./figures/rust-kuzmin.png}
     \caption{The Kuzmin dataset of $10^8$ points. The first partition only
              moves $r_1$. The second partition eliminates all remaining points.}
     \label{fig:kuzmin}
@@ -91,23 +92,17 @@ The convex hull has only $4$ points.
 \subsubsection{Circle}
 
 A circle is convex, so all points are on the hull. As a circle is symmetric,
-each recursive call of FindHull will identify an element on the hull, and
+each recursive call of FindHull will identify one element on the hull, and
 then recurse on two subsets $S_1$ and $S_2$ differing at most one in size.
-That means we have $2^d$ calls at recursion depth $d$ until we hit the point 
-where either $|S_1| = 1$ and $|S_2| = 0$ or vice-versa. 
-As each recursive call eliminates one point, there are
-$10^8 - \sum_{i = 0}^{d - 1} 2^i = 10^8 - 2^{d}$ points left at recursion 
-depth $d$. For $10^8$ points, we have a recursion depth of 
-$\lceil \log_{2}(10^8) \rceil = 26$.
+That means we have a deep recursion.
 
-\textbf{A note on accuracy: }as the circle has effectively area $0$, the 
-points are much closer together than in the other data sets.
-This causes some accuracy difficulties. Already for 100K points, 
-both BlockQuickhull and PBBS do not report all points as being in the hull. Both 
-implementations find the same points up to 10M points, after which they disagree
-on $20$ points. These are points $u$ for which $\text{orient}(p, u, r_1) > 0$
-and $\text{orient}(r_2, u, q) > 0$, so this is because of our choice to put
-these in $S_1$. 
+\textbf{A note on accuracy: }the actual dataset is only an approximation of
+a circle, and we classify roughly one in ten points as lying on the convex
+hull. Both implementations find the same points up to $10^7$ points, but on 
+$10^8$ they disagree on $20$ points. These are points $u$ for which 
+$\text{orient}(p, u, r_1) > 0$ and $\text{orient}(r_2, u, q) > 0$ which
+can only happen due to roundoff error. We have made the arbitrary decision
+to put these in $S_1$.
 
 \subsubsection{Disk}
 
@@ -118,7 +113,8 @@ Figure~\ref{fig:disk_level2}. This square has area $2$, so it will eliminate
 most points: a fraction $\frac{2}{\pi} \approx 0.637$.
 
 \begin{figure}[ht]
-    \resizebox{\columnwidth}{!}{%
+    \begin{subfigure}{0.4\textwidth}
+        \resizebox{\columnwidth}{!}{%
         \begin{tikzpicture}
             \draw (0, 0) circle (2);
             \draw (-2, 0) node[left]  {$p$}   -- node[pos=0.5, above left] {I}
@@ -126,155 +122,124 @@ most points: a fraction $\frac{2}{\pi} \approx 0.637$.
                   (2, 0)  node[right] {$q$}   -- node[pos=0.5, below right] {III}
                   (0, -2) node[below] {$r_2$} -- node[pos=0.5, below left] {IV}
                   (-2, 0);
-                  \node at (0, 0) {V};
-        \end{tikzpicture}
-    }
-    \caption{The Disk data set at recursion level 2. Region V will be 
-             eliminated, and the recursion will continue on regions I 
-             \textemdash IV.}
-    \label{fig:disk_level2}
-\end{figure}
-
-After this, the recursion will continue on pie slices of progressively smaller
-angle. The proportion of points eliminated is almost constant in this angle.
-To see this, we label some points in Figure~\ref{fig:disk_level3+}. 
-
-\begin{figure}[ht]
-    \resizebox{\columnwidth}{!}{%
+              \node at (0, 0) {V};
+        \end{tikzpicture}}
+        \caption{The Disk data set at recursion level 2. Region V will be 
+                 eliminated, and the recursion will continue on regions I 
+                 \textemdash IV.}
+        \label{fig:disk_level2}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.4\textwidth}
+        \resizebox{\columnwidth}{!}{%
         \begin{tikzpicture}
             \foreach \r in {5} {
             \draw (0,0) arc (0:80:\r);
-            \draw (-0.8 * \r,0) arc (0:80:0.2 * \r) 
-                            node[pos=0.2, left] {$\frac{\theta}{2}$}
-                            node[pos=0.88, below] {$\frac{\theta}{2}$};
-            \draw (0,0)  node[below right] {$s$} -- ++(0+180:\r) -- 
-                                +(80:\r) node[above left] {$r$};
-            \draw (-1 * \r,0) node[below left] {$p$} -- 
-                  (0.766 * \r - 1 * \r, 0.6428 * \r) node[above right] {$q$};
+            \draw (0,0)  node[below right] {$p$} -- ++(0+180:\r) -- 
+                                +(80:\r) node[above left] {$q$};
+            \draw (0.766 * \r - 1 * \r, 0.6428 * \r) node[above right] {$r$};
             \draw (0.173 * \r - 1 * \r, 0.985 * \r) -- (0, 0);
             \draw (0.173 * \r - 1 * \r, 0.985 * \r) -- 
                   (0.766 * \r - 1 * \r, 0.6428 * \r) -- (0, 0);
-            \node at (0.413 * \r - 0.766 * \r, 0.766 * 0.6428 * \r) {$a$};
         }
-        \end{tikzpicture}
-    }
-    \caption{Subset of Disk we apply a recursive call of the Quickhull 
-             algorithm on. The points are uniformly sampled from the disk
-             segment to the right of the line segment $rs$.}
-    \label{fig:disk_level3+}
+        \end{tikzpicture}}
+        \caption{Subset of Disk we apply a recursive call of the Quickhull 
+                 algorithm on. The points are uniformly sampled from the disk
+                 segment to the right of the line segment $rs$.}
+        \label{fig:disk_level3+}
+    \end{subfigure}
+    \caption{Quickhull on Disk dataset at different recursion levels.}
 \end{figure}
 
-The elements not yet eliminated lie to the right of $rs$, and in this step,
-we eliminate the elements in $\Delta rqs$.
+After this, the recursion will continue on pie slices of progressively smaller
+angle (Figure~\ref{fig:disk_level3+}. 
+The proportion of points eliminated is almost constant in this angle and roughly
+equal to $0.74$.
+%To see this, we label some points in Figure~\ref{fig:disk_level3+}. 
 
-The triangle $\Delta prs$ is isosceles, so $\angle par$ and $\angle pas$
-are right angles. That gives us $|pa| = \cos(\theta / 2)$ and 
-$|sa| = |ar| = \sin(\theta / 2)$. So $\Delta psr$ has area 
-$\sin(\theta / 2) \cos(\theta / 2) = \frac{1}{2} \sin(\theta)$. The entire
-pie slice has area $\frac{\theta}{2 \pi} \cdot \pi = \frac{1}{2} \theta$.
-Therefore, the part of the circle above the line $rs$ has area 
-$\frac{1}{2}(\theta - \sin(\theta))$.
-
-Since $|aq| = |pq| - |pa| = 1 - \cos(\theta / 2)$, the area of $\Delta rqs$
-is $\sin(\theta / 2) (1 - \cos(\theta / 2))$. So the fraction of points we
-eliminate is
-
-$$\frac{2\sin(\theta / 2) (1 - \cos(\theta / 2))}{\theta - \sin(\theta)}.$$
-
-We approximate this with a third degree Chebyshev approximation on 
-$[0, \frac{\pi}{2}]$, which is
-
+%The elements not yet eliminated lie to the right of $rs$, and in this step,
+%we eliminate the elements in $\Delta rqs$.
+%
+%The triangle $\Delta prs$ is isosceles, so $\angle par$ and $\angle pas$
+%are right angles. That gives us $|pa| = \cos(\theta / 2)$ and 
+%$|sa| = |ar| = \sin(\theta / 2)$. So $\Delta psr$ has area 
+%$\sin(\theta / 2) \cos(\theta / 2) = \frac{1}{2} \sin(\theta)$. The entire
+%pie slice has area $\frac{\theta}{2 \pi} \cdot \pi = \frac{1}{2} \theta$.
+%Therefore, the part of the circle above the line $rs$ has area 
+%$\frac{1}{2}(\theta - \sin(\theta))$.
+%
+%Since $|aq| = |pq| - |pa| = 1 - \cos(\theta / 2)$, the area of $\Delta rqs$
+%is $\sin(\theta / 2) (1 - \cos(\theta / 2))$. So the fraction of points we
+%eliminate is
+%
+%$$\frac{2\sin(\theta / 2) (1 - \cos(\theta / 2))}{\theta - \sin(\theta)}.$$
+%
+%We approximate this with a third degree Chebyshev approximation on 
+%$[0, \frac{\pi}{2}]$, which is
+%
 % 1.48202191816423201 * 0.5 - -0.00314946736514754 = 0.744160426447263545
 % -0.01207255984434141 - 3 * -0.00007573579005338  = -0.01184535247418127
 % 2 * -0.00314946736514754                         = -0.00629893473029508
 % 4 * -0.00007573579005338                         = -0.00030294316021352
-$$0.744 - 0.012 \theta - 0.0063 \theta^2 - 0.0003 \theta^3. $$
-
-The smaller $\theta$ gets, the closer this will be to $0.744$. Even for the
-largest $\theta = \frac{\pi}{2}$, this value is reasonably close: $0.708$. 
-So we take $0.74$ as approximation. That means the recursion depth is roughly
-$1 + \log_{\frac{1}{1 - 0.74}}((1 - 0.637) \cdot 10^8) \approx 14$.
-
-The convex hull has $1593$ points.
+%$$0.744 - 0.012 \theta - 0.0063 \theta^2 - 0.0003 \theta^3. $$
+%
+%The smaller $\theta$ gets, the closer this will be to $0.744$. Even for the
+%largest $\theta = \frac{\pi}{2}$, this value is reasonably close: $0.708$. 
+%So we take $0.74$ as approximation. That means the recursion depth is roughly
+%$1 + \log_{\frac{1}{1 - 0.74}}((1 - 0.637) \cdot 10^8) \approx 14$.
+%
+%The convex hull has $1593$ points.
 
 \subsection{Interpreting the Results}
 
 Evaluating the performance of an algorithm and its implementation is difficult.
 The runtime alone tells us little about the quality of the implementation, as
-it differs between machines. We give a few performance measures that can
-be related to the capabilities of the machine.
+it differs between machines.
 
-\subsubsection{Bandwidth}
+For this reason we also compute the bandwidth. Assuming a double is $8$ bytes,
+this is $8n$ bytes for finding the left-most and right-most points. At each
+recursive call, we have $8(n + |S_1| + |S_2|)$ bytes for the partition,
+and $8|CH(S_2)|$ bytes to place $CH(S_1)$ and $CH(S_2)$ next to eachother in
+memory. This is $5.6$ GB, $73$ GB, $7.2$ GB for Kuzmin, Circle, and Disk.
 
-To measure how good our implementation of Quickhull is, we compute the data 
-movement required by Quickhull divided by the runtime. The distance between
-this and the peak bandwidth of the machine, gives us an
-idea of how far the implementation can be improved.
+The data movement of our algorithm is not optimal. Take for example Disk:
+The Akl-Toussaint heuristic \cite{akl78} lets us identify $p_1, \cdots, p_8$
+of Figure~\ref{fig:akl} in one pass. This octagon has area $2\sqrt{2}$,
+which is approximately $90\%$ of the disk, and these points can be eliminated.
 
-For all datasets, we need to read $10^8$ elements to find the left-most
-and right-most point, and then $10^8$ reads and writes to partition $P$
-in the set of points above and below the resulting line-segment. A point
-is $16$ bytes, so this amounts to $16 \cdot 10^8 \cdot 3 = 4.8 GB$ of 
-data-movement. After that, it depends on the data set. We can compute this 
-straightforwardly from the analysis of Subsection~\ref{subsec:datasets}.
+Points $u$ satisfy $orient(p_i, u, p_{i + 1 \text{ mod } 8}) > 0$ for precisely 
+one $i$ if they are between the circle and line segment 
+$\overrightarrow{p_i p_{i + 1 \text{ mod } 8}}$, or none if 
+$u$ is inside the octagon.
+If we can partition the input into these eight areas
+in one pass as well, we need only $1.6 + 1.6 + 0.16 = 3.36$ GB to eliminate
+$90\%$ of points. Our algorithm gets to the same points in $3$ levels of
+recursion, which takes $6.5$ GB. So a better algorithm can cut the required
+bandwidth almost in half. To take this into account we also look at the minimum
+amount of data movement any algorithm can obtain: the size of the input plus
+the size of the output. Dividing this by the runtime is called the
+\textit{effective bandwidth}.
 
-
-\textbf{Kuzmin:} after the initial partition into above and below $pq$ of
-Figure~\ref{fig:kuzmin}, we only need one read pass to eliminate the
-points in $\Delta pr_2q$. This cumulates in a data movement of
-
-$$4.8 \cdot 10^9 + 16 \cdot 10^8 = 6.4 GB.$$ 
-
-\textbf{Circle:} each pass reads and writes all elements in that recursion
-level, so the total data movement is
-
-$$4.8 \cdot 10^9 + 2 \cdot 16 \sum_{d = 2}^{26}(10^8 - 2^d) = 81 GB.$$
-
-
-\textbf{Disk:} on the first recursion we read all points, and write
-$1 - \frac{2}{\pi} \approx 0.363$ of those back. From recursion level 2 onwards,
-we read all points that are left, and write only a fraction $0.26$ of those
-back, so the total data movement is
-
-$$4.8 \cdot 10^9 + (1 + 0.363) \cdot 16 \cdot 10^8 + $$
-$$16 \cdot \sum_{d = 1}^{13} 
-\left(0.363 \cdot 10^8 \cdot (0.26^{d - 1} + 0.26^{d})\right) =$$
-$$8.0 GB.$$
-
-\subsubsection{Effective Bandwidth}
-
-The data movement in this algorithm is not optimal. Take for example 
-Figure~\ref{fig:disk_level2}. We could have identified $p$, $r_1$, $q$, $r_2$
-in one pass by also keeping track of top and bottom elements. That means
-that to reach that stage, we need two reads on $10^8$ elements,
-and a write on 
-$\left(1 - \frac{2}{\pi}\right) \cdot 10^8 \approx 3.6 \cdot 10^7$ elements.
-That would bring the total data movement down from $9.2$ GB to $5.0$ GB.
-
-So to also take possible algorithmic improvements into account,
-we also compute the bandwidth as if we did the theoretical minimum of
-data movement: one read of the input, and one write for the output.
-
-\subsubsection{Compute Rate}
-
-Computing the orientation of a point takes $7$ flops, and this function is
-evaluated twice every time an element is partitioned. So the total number of
-flops required is
-
-$$2 \cdot 7 \cdot 2 \cdot 10^8 = 2.8 \cdot 10^9,$$ 
-$$2 \cdot 7 \cdot \sum_{d = 1}^{26} (10^8 - 2^d) = 34 \cdot 10^9,$$
-$$2 \cdot 7 \cdot 10^8 \cdot 2 + 7 \sum_{d = 1}^{13} \left(0.363^d \cdot 
-10^8 \right)  = 3.6 \cdot 10^9.$$
-
-Every clock cycle, the vector units can do $8$ subtractions, multiplications, 
-or fmas. We have these in a $4:1:1$ ratio, and they do $1, 1, 2$
-flops. The frequency is $2.6$ GHz, so for our computation the peak performance
-per core is
-
-$$2.6 \cdot 8 \cdot \frac{4 \cdot 1 + 1 \cdot 1 + 1 \cdot 2}{4 + 1 + 1} = 24.3 
-        \ \text{Gflops}.$$
-
-For the entire CPU, this becomes $194$ Gflops.
+\begin{figure}[ht]
+    \resizebox{\columnwidth}{!}{%
+    \begin{tikzpicture}
+        \draw (0, 0) circle (2);
+        \draw (-2, 0) node[left] {$p_1$} --
+              (-1.414, 1.414) node[above left] {$p_2$} --
+              (0, 2) node[above] {$p_3$} --
+              (1.414, 1.414) node[above right] {$p_4$} --
+              (2, 0) node[right] {$p_5$} --
+              (1.414, -1.414) node[below right] {$p_6$} --
+              (0, -2) node[below] {$p_7$} --
+              (-1.414, -1.414) node[below left] {$p_8$} --
+              (-2, 0);
+    \end{tikzpicture}}
+    \caption{Points $p_1, \cdots, p_8$ can be found by minimum / maximum
+             $x$-coordinates, $y$-coordinates, differences / sums of 
+             $x$ and $y$ coordinates. Points within this octagon are not in 
+             the convex hull.}
+    \label{fig:akl}
+\end{figure}
 
 \subsection{Analysis}
 
@@ -299,9 +264,6 @@ leads to high bandwidth, but low effective bandwidth (Table~\ref{table:ef_bw}.
 It is notable that we obtain lower bandwidth for Disk. In contrast to Kuzmin,
 it is unpredictable whether we have to load from the left- or righthand side
 in the partition. This may have a negative effect on the hardware prefetcher.
-
-\tkcomment{TODO: Disabling hyperthreading is superior almost everywhere, except
-for the recursion of Kuzmin}
 
 The single-threaded benchmarks are not bound by memory bandwidth, yet we
 see in Table~\ref{table:flops} that we achieve only a fraction of the
@@ -358,22 +320,6 @@ VecQuickhull,3.64e+00, 4.64e+02, 2.45e-01, 1.04e+02, 2.38e+00, 3.58e+02
 PBBS par,2.16e+01, 3.77e+03, 4.98e-01, 8.43e+01, 8.41e+00, 4.70e+02
 VecQuickhull par,2.80e+01, 6.25e+02, 4.26e+00, 6.19e+01, 1.77e+01, 1.01e+02
 }\efbwtablenuma
-
-\pgfplotstableread{
-Imp,Kuzmin,kuzminstd,Circle,circlestd,Disk,diskstd
-PBBS,2.86e+00, 2.02e+03, 5.56e-01, 1.97e+02, 9.32e-01, 3.36e+02
-VecQuickhull,9.56e+00, 2.27e+03, 7.19e+00, 2.86e+03, 8.04e+00, 1.84e+03
-PBBS par,1.20e+01, 1.02e+03, 3.90e+00, 5.81e+02, 6.81e+00, 3.61e+02
-VecQuickhull par,1.85e+01, 1.10e+03, 2.82e+01, 1.02e+03, 1.45e+01, 8.47e+02
-}\floptable
-
-\pgfplotstableread{
-Imp,Kuzmin,kuzminstd,Circle,circlestd,Disk,diskstd
-PBBS,4.07e+00, 7.20e+02, 6.27e-01, 3.01e+02, 1.00e+00, 2.05e+02
-VecQuickhull,6.37e+00, 8.12e+02, 5.17e+00, 2.20e+03, 5.34e+00, 8.05e+02
-PBBS par,3.79e+01, 6.60e+03, 1.05e+01, 1.78e+03, 1.89e+01, 1.06e+03
-VecQuickhull par,4.89e+01, 1.09e+03, 8.99e+01, 1.31e+03, 3.99e+01, 2.27e+02
-}\floptablenuma
 
 \tkcomment{For some reason it is really hard to get significant figures
 in Latex. Maybe write a C program that generates Latex code.}
@@ -463,30 +409,4 @@ in Latex. Maybe write a C program that generates Latex code.}
         columns/Circle/.style={fixed},
         columns/Disk/.style={fixed},
     ]\efbwtablenuma
-\end{table}
-
-\begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull compute rate in Gflops on cn125.}
-    \label{table:flops}
-    \pgfplotstabletypeset[
-        columns={Imp,Kuzmin,Circle,Disk},
-        column type/.add={|}{},
-        every last column/.style={column type/.add={}{|}},
-        every head row/.style={before row=\hline, after row=\hline},
-        every last row/.style={after row=\hline},
-        columns/Imp/.style={string type, column name={}},
-    ]\floptable
-\end{table}
-
-\begin{table}[ht]
-    \caption{BlockQuickhull and PBBS Quickhull compute rate in Gflops on cn132.}
-    \label{table:flopsnuma}
-    \pgfplotstabletypeset[
-        columns={Imp,Kuzmin,Circle,Disk},
-        column type/.add={|}{},
-        every last column/.style={column type/.add={}{|}},
-        every head row/.style={before row=\hline, after row=\hline},
-        every last row/.style={after row=\hline},
-        columns/Imp/.style={string type, column name={}},
-    ]\floptablenuma
 \end{table}

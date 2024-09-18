@@ -1,4 +1,7 @@
-\documentclass[draft]{lipics-v2021}
+\documentclass[a4paper,UKenglish,cleveref,autoref]{lipics-v2021}
+
+% Only for preprint
+\hideLIPIcs
 
 \bibliographystyle{plainurl}
 
@@ -8,17 +11,20 @@
 
 \author{Jordy Aaldering}{Radboud University, the Netherlands}{jordy.aaldering@ru.nl}{https://orcid.org/0009-0001-3018-5152}{}
 
-\author{Bernard van Gastel}{Radboud University, the Netherlands}{bernard.vangastel@ru.nl}{https://orcid.org/0000-0002-0974-4634}{}
+%\author{Bernard van Gastel}{Radboud University, the Netherlands}{bernard.vangastel@ru.nl}{https://orcid.org/0000-0002-0974-4634}{}
 
-\authorrunning{T.J. Koopman, J. Aaldering, B. van Gastel}
+\authorrunning{T.J. Koopman, J. Aaldering}
 
-\Copyright{Thomas Koopman, Jordy Aaldering, Bernard van Gastel}
+\Copyright{Thomas Koopman, Jordy Aaldering}
 
-\ccsdesc[100]{\textcolor{red}{Replace ccsdesc macro with valid one}}
+\ccsdesc[500]{Theory of computation~Computational geometry}
+\ccsdesc[300]{Computer systems organization~Single instruction, multiple data}
+\ccsdesc[300]{Computer systems organization~Multicore architectures}
 
-\keywords{Dummy keyword}
+\keywords{Convex Hull, Optimisation, Quickhull, Parallel Algorithms}
 
-%\relatedversion{} %optional, e.g. full version hosted on arXiv, HAL, or other respository/website
+% For actual submission, put preprint here
+%\relatedversion{}
 %\relatedversiondetails[linktext={opt. text shown instead of the URL}, cite=DBLP:books/mk/GrayR93]{Classification (e.g. Full Version, Extended Version, Previous Version}{URL to related version} %linktext and cite are optional
 
 %\supplement{}%optional, e.g. related research data, source code, ... hosted on a repository like zenodo, figshare, GitHub, ...
@@ -68,15 +74,11 @@
 
 \input{quickhull}
 
-\input{optimising}
-
 \input{partition}
 
-\input{implementation}
+\input{evaluation}
 
-\input{comparison}
-
-\input{accuracy}
+%\input{accuracy}
 
 \input{conclusion}
 

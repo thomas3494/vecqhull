@@ -3,10 +3,9 @@ SRC := paper.tex \
        preliminaries.tex \
 	   intro.tex \
 	   quickhull.tex \
-	   implementation.tex \
 	   accuracy.tex \
 	   partition.tex \
-	   comparison.tex \
+	   evaluation.tex \
 	   conclusion.tex \
        paper.bib
 
