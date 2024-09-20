@@ -1,9 +1,205 @@
 \section{Preliminaries}
 
+\subsection{Quickhull}
+
+The Quickhull algorithm makes use of two important facts illustrated by 
+Figure~\ref{fig:quickhull}. First, if $p$, $q$ are in the convex hull, then 
+any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
+hull as well. Secondly, any point within the triangle $puq$ is not in the 
+convex hull. Only the points to the left of $pu$ and to the right of $uq$ 
+still need to be considered.
+
+\begin{figure}[ht]
+    \centering
+    \resizebox{0.5\columnwidth}{!}{%
+        \begin{tikzpicture}
+            \node (26_32) at (5.200, 6.400) {$\bullet$};
+            \node (26_9) at (5.200, 1.800) {$\bullet$};
+            \node (27_49) at (5.400, 9.800) {$\bullet$};
+            \node (37_18) at (7.400, 3.600) {$\bullet$};
+            \node (9_18) at (1.800, 3.600) {$\bullet$};
+            \node (16_14) at (3.200, 2.800) {$\bullet$};
+            \node (40_13) at (8.000, 2.600) {$\bullet$};
+            \node (22_17) at (4.400, 3.400) {$\bullet$};
+            \node (34_2) at (6.800, 0.400) {$\bullet$};
+            \node (37_4) at (7.400, 0.800) {$\bullet$};
+            \node (8_13) at (1.600, 2.600) {$\bullet$};
+            \node (r1) at (2.000, 0.200) {$r_1$};
+            \node (38_19) at (7.600, 3.800) {$\bullet$};
+            \node (r2) at (9.400, 9.200) {$r_2$};
+            \node (38_25) at (7.600, 5.000) {$\bullet$};
+            \node (11_16) at (2.200, 3.200) {$\bullet$};
+            \node (7_38) at (1.400, 7.600) {$\bullet$};
+            \node (27_37) at (5.400, 7.400) {$\bullet$};
+            \node (37_14) at (7.400, 2.800) {$\bullet$};
+            \node (5_48) at (1.000, 9.600) {$\bullet$};
+            \node (34_21) at (6.800, 4.200) {$\bullet$};
+            \node (14_24) at (2.800, 4.800) {$\bullet$};
+            \node (35_36) at (7.000, 7.200) {$\bullet$};
+            \node (43_21) at (8.600, 4.200) {$\bullet$};
+            \node (40_30) at (8.000, 6.000) {$\bullet$};
+            \node (25_48) at (5.000, 9.600) {$\bullet$};
+            \node (46_37) at (9.200, 7.400) {$\bullet$};
+            \node (q) at (9.800, 6.800) {$q$};
+            \node (8_49) at (1.600, 9.800) {$\bullet$};
+            \node (31_48) at (6.200, 9.600) {$\bullet$};
+            \node (26_42) at (5.200, 8.400) {$\bullet$};
+            \node (14_35) at (2.800, 7.000) {$\bullet$};
+            \node (32_41) at (6.400, 8.200) {$\bullet$};
+            \node (22_21) at (4.400, 4.200) {$\bullet$};
+            \node (7_29) at (1.400, 5.800) {$\bullet$};
+            \node (19_41) at (3.800, 8.200) {$\bullet$};
+            \node (1_33) at (0.200, 6.600) {$\bullet$};
+            \node (16_38) at (3.200, 7.600) {$\bullet$};
+            \node (19_11) at (3.800, 2.200) {$\bullet$};
+            \node (9_12) at (1.800, 2.400) {$\bullet$};
+            \node (42_36) at (8.400, 7.200) {$\bullet$};
+            \node (10_38) at (2.000, 7.600) {$\bullet$};
+            \node (25_12) at (5.000, 2.400) {$\bullet$};
+            \node (22_33) at (4.400, 6.600) {$\bullet$};
+            \node (13_5) at (2.600, 1.000) {$\bullet$};
+            \node (31_39) at (6.200, 7.800) {$\bullet$};
+            \node (p) at (0.000, 9.400) {$p$};
+            \node (24_32) at (4.800, 6.400) {$\bullet$};
+            \node (40_47) at (8.000, 9.400) {$\bullet$};
+            \node (6_47) at (1.200, 9.400) {$\bullet$};
+
+            \graph {(p) --[red] (q)};
+            \graph {(p) --[red] (r1)};
+            \graph {(r1) --[red] (q)};
+            \graph {(p) --[red] (r2)};
+            \graph {(r2) --[red] (q)};
+        \end{tikzpicture}
+    }
+    \caption{The points $p$ and $q$ are the left-most and 
+             right-most points, and therefore in the hull. The points $r_1$,
+             $r_2$ are furthest from the line $pq$, and also in the hull. Any
+             point within the two triangles cannot be in the convex hull.}
+    \label{fig:quickhull}
+\end{figure}
+
+This idea can be applied recursively to find the complex hull, starting with
+the left-most (highest in case of ties), and right-most (lowest in case of ties)
+points.
+
+While it is intuitively clear what points are to the left of a line $pq$, or
+inside a triangle $prq$, it is not straightforward to define this precisely.
+For this we need a quantity called the orientation of three points.
+
+Given three points $p, u, q$ in the plane, we have vectors
+\[
+    \vec{pu} = \begin{pmatrix}
+        u_x - p_x \\
+        u_y - p_y
+    \end{pmatrix},
+    \vec{uq} = \begin{pmatrix}
+        q_x - u_x \\
+        q_y - u_y
+    \end{pmatrix}
+\]
+
+representing oriented line segments between the points, as depicted in
+Figure~\ref{fig:orient1}.
+
+\begin{figure}[ht]
+    \begin{subfigure}{0.45\textwidth}
+    \begin{tikzpicture}
+        \node (p) at (0, 0) {$p$};
+        \node (u) at (1, 2) {$u$};
+        \node (q) at (2, 1) {$q$};
+
+        \graph {(p) ->["$\vec{pu}$"] (u)};
+        \graph {(u) ->["$\vec{uq}$"] (q)};
+    \end{tikzpicture}
+    \caption{Two vectors induced by three points in the plane. The path 
+             $p, u, q$ makes a right-hand turn.}
+    \label{fig:orient1}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.45\textwidth}
+    \begin{tikzpicture}
+        \node (p) at (0, 0)  {$p$};
+        \node (u) at (1, 2)  {$u$};
+        \node (q) at (2, 1)  {$q$};
+        \node (c) at (1, -1) {};
+
+        \graph {(p) ->["$\vec{pu}$"] (u)};
+        \graph {(u) ->["$\vec{uq}$"] (q)};
+        \graph {(p) --               (c)};
+        \graph {(c) --               (q)};
+    \end{tikzpicture}
+    \caption{Parallelogram spanned by $\vec{pu}$ and $\vec{uq}$. 
+             The area of this parallelogram is $|orient(p, u, q)|$.}
+    \label{fig:orient2}
+    \end{subfigure}
+    \caption{A visualisation of the orientation of three points.}
+\end{figure}
+
+We can view these as vectors in 3D by adding a $z$-coordinate $0$. Now the
+cross product $\vec{pu} \times \vec{uq}$ is equal to 
+
+\[
+    \begin{pmatrix}
+        0 \\
+        0 \\
+        (u_x - p_x) \cdot (q_y - u_y) - (u_y - p_y) \cdot (q_x - u_x)
+    \end{pmatrix}.
+\]
+
+We write $orient(p, q, u)$ for the $z$-coordinate
+$(q_x - p_x) \cdot (u_y - q_y) - (q_y - p_y) \cdot (u_x - q_x)$. 
+If the cross-product points up, so if $orient(p, u, q) > 0$, we make a left-hand 
+turn going from $p$ to $u$ to $q$, and if this is negative, we make a right-hand
+turn. If it is zero, the points $p, u, q$ are collinear. 
+
+We colloquially say $u$ is to the left of $pq$ if $orient(p, u, q) > 0$.
+
+The authors of \cite{quickerthanqhull} point out that we can use the 
+orientation to find the point furthest from the line segment $pq$. 
+The norm of the outer product
+$|\vec{pq} \times \vec{qu}| = |orient(p, q, u)|$ is the area of the
+parallelogram spanned by $\vec{pq}$ and $\vec{qu}$. This is also equal to
+the length of $pq$ multiplied by the distance from $u$ to the line through 
+$pq$. So $|orient(p, u, q)| > |orient(p, u', q)|$ if and only if $u$ is further
+from $pq$ than $u'$.
+
+This cumulates into Algorithm~\ref{alg:quickhull_basic}. By slight abuse
+of notation, we assume that the sets are ordered, so that in $\{p\} \cup \{q\}$,
+the point $q$ comes after $p$.
+
+\begin{algorithm}[ht]
+\begin{algorithmic}[1]
+    \caption{Quickhull algorithm}\label{alg:quickhull_basic}
+    \Require $P: $ set of points in $\mathbb{R}^2$,
+    \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
+    \State Let $p$ be the left-most point in $P$, $q$ the right-most point.
+    \State Let $S_1 = \{u \in P \ | \ orient(p, u, q) > 0\}$
+    \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, q)$.
+    \State Let $S_2 = \{u \in P \ | \ orient(q, u, p) > 0\}$
+    \State Let $r_2 = \argmax\limits_{u \in S_2}orient(q, u, p)$.
+    \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $q$}
+            $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $q$, $r_2$, $p$}.
+    \Function{FindHull}{P, p, r, q}
+        \If{$|P| \leq 1$}
+            \State Let $H = P$.
+        \Else
+            \State Let $S_1 = \{u \in P \ | \ orient(p, u, r) > 0\}$.
+            \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, r)$.
+            \State Let $S_2 = \{u \in P \ | \ orient(r, u, q) > 0\}$
+            \State Let $r_2 = \argmax\limits_{u \in S_2}orient(r, u, q)$.
+            \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $r$}
+                   $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $r$, $r_2$, $q$}
+        \EndIf
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Perfomance Considerations}
+
 We review some factors that are relevant to performance on a Central Processing
 Units (\textit{CPU}).
 
-\subsection{Branching}
+\subsubsection{Branching}
 
 Whenever a CPU encounters a conditional jump \textemdash{:~generated by 
 if statements and loops in high level languages~\textemdash{} it will guess 
@@ -12,7 +208,7 @@ whether to jump or not and start executing. This is also called branching.
 This mechanism makes branching practically free if the correct guesses are made.
 If not, the CPU must make an expensive recovery. 
 
-\subsection{Vectorisation}
+\subsubsection{Vectorisation}
 
 A \textit{vector} or \textit{SIMD} instruction is one that operates on
 multiple primitive types (such as integers or floating point numbers) at
@@ -26,7 +222,7 @@ also data-movement such as
 This reduces the number of instructions necessary, and can be used to
 eliminate branches.
 
-\subsection{Memory Hierarchy and Multithreading}
+\subsubsection{Memory Hierarchy and Multithreading}
 
 The speed at which we can do a computation depends on how quickly we can
 execute instructions, and on how quickly we can get the necessary data loaded

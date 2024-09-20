@@ -1,0 +1,33 @@
+\section{Related Work}
+
+There are many algorithms for computing Convex Hulls \cite{}. The original
+authors of the Quickhull algorithm provide an implementation \cite{qhull},
+which works on arbitrary dimension. This and the other algorithms mentioned
+are implemented in the Computational Geometry Algorithms Library (CGAL) 
+\cite{cgal}.
+
+We have done some preliminary testing on a laptop with a disk of $10^7$ points,
+the results of which are summarized in Table~\ref{table:reference}.
+
+\begin{table}[ht]
+    \caption{Runtime in seconds for a disk of $10^7$ points}
+    \label{table:reference}
+    \begin{tabular}{c | c }
+     Implementation & Runtime \\
+     \hline \\
+     PBBS & 0.31 \\
+     CGAL Quickhull & 0.61 \\
+     CGAL Akl-Toussaint & 0.60 \\
+     CGAL Bykat & 0.73 \\
+     CGAL Eddy & 0.98 \\
+     CGAL Graham & 1.3 \\
+     CGAL Jarvis & 208 \\
+     Qhull & 1.1 \\
+    \end{tabular}
+\end{table}
+
+\tkcomment{TODO: sorting stuff, accuracy}
+
+One could consider Super Scalar Sample Sort \cite{ssss} to be to the
+Akl-Toussaint heuristic as Quicksort is to Quickhull. A parallel and in-place
+variant of this is called ips4o \cite{ips4o}.

@@ -1,36 +1,33 @@
-\section{Performance Evaluation}\label{sec:perf}
+\section{Performance Evaluation}\label{sec:evaluation}
 
-The PBBS benchmark consists of three data sets. Each of these consists of
-$10^8$ points drawn from different distributions. Even though all data sets
-are $1.6$ GB in size, the algorithm behaves very differently on them.
+Some preliminary testing shows that out of the many available convex hull
+implementations, the one from the Problem Based Benchmark Suite (PBBS) 
+\cite{pbbs} is the fastest by a significant margin
+(Section~\ref{sec:conclusion}).
 
-\tkcomment{Move to related work?}
-As a baseline we have considered Qhull \cite{}, the algorithms of CGAL \cite{},
-and the implementation of PBBS. Some preliminary testing shows that the
-implementation of PBBS is the fastest by a large margin. In
-Table~\ref{table:reference} are the runtimes for a disk of $10^7$ points.
-
-\begin{table}[ht]
-    \caption{Runtime in seconds for a disk of $10^7$ points}
-    \label{table:reference}
-    \begin{tabular}{c | c }
-     Implementation & Runtime \\ 
-     \hline \\
-     PBBS & 0.31 \\  
-     CGAL Quickhull & 0.61 \\
-     CGAL Akl-Toussaint & 0.60 \\
-     CGAL Bykat & 0.73 \\
-     CGAL Eddy & 0.98 \\
-     CGAL Graham & 1.3 \\
-     CGAL Jarvis & 208 \\
-     Qhull & 1.1 \\
-    \end{tabular}
-\end{table}
+This benchmark suite also describes three data sets which we use for
+our evaluation. Each of these consists of $10^8$ points drawn from different
+distributions. 
 
 We use GCC 14.1.1. All experiments are run 20 times. The standard deviation is 
 less than $2.5\%$ in all cases, so we only report the means.
 
+\subsection{Implementation Details}
+
+In addition to the subset extraction, Algorithm~\ref{alg:quickhull_basic}
+requires finding points $r_1$, $r_2$. We weave this in with the subset
+extraction so that we only have to iterate over the array once. This saves
+bandwidth.
+
+We parallelise both the recursion and the subset extraction. We divide the
+available threads over the recursive calls in the same ratio as
+$|S_1| : |S_2|$. When we have only one thread left, we switch to the sequential
+implementation.
+
 \subsection{Evaluation Platforms}
+
+\tkcomment{A different architecture such as ARM + NEON, or ideally ARM + SVE
+would be nice.}
 
 We evaluate our implementation on two machines. The first, \textit{cn125}
 has powerful vector instructions, a modest amount of cores and memory, and a 
@@ -69,8 +66,8 @@ disabling hyperthreading.
 
 \subsection{The Data Sets}\label{subsec:datasets}
 
-There is a large difference between runtime of Quickhull on the different 
-datasets.
+The performance of the Quickhull algorithm depends on the input data,
+so we give a brief description. 
 
 \subsubsection{Kuzmin}
 
@@ -95,13 +92,15 @@ each recursive call of FindHull will identify one element on the hull, and
 then recurse on two subsets $S_1$ and $S_2$ differing at most one in size.
 That means we have a deep recursion.
 
-\textbf{A note on accuracy: }the actual dataset is only an approximation of
-a circle, and we classify roughly one in ten points as lying on the convex
-hull. Both implementations find the same points up to $10^7$ points, but on 
-$10^8$ they disagree on $20$ points. These are points $u$ for which 
-$\text{orient}(p, u, r_1) > 0$ and $\text{orient}(r_2, u, q) > 0$ which
-can only happen due to round-off error. We have made the arbitrary decision
-to put these in $S_1$.
+\textbf{A note on accuracy: }the convex hull of a circle is the circle itself.
+However, we only classify roughly one in ten points as lying on the convex
+hull due to the inexactness of floating-point numbers. Our implementation
+disagrees on $20$ points. These are points $u$ for which
+$\text{orient}(p, u, r_1) > 0$ and $\text{orient}(r_2, u, q) > 0$ which can
+only happen due to round-off error. We have made the arbitrary decision to put
+these in $S_1$.
+
+The implementations agree on input sizes where all points are found.
 
 \subsubsection{Disk}
 
@@ -134,7 +133,7 @@ most points: a fraction $\frac{2}{\pi} \approx 0.637$.
         \begin{tikzpicture}
             \foreach \r in {5} {
             \draw (0,0) arc (0:80:\r);
-            \draw (0,0)  node[below right] {$p$} -- ++(0+180:\r) -- 
+            \draw (0,0)  node[below right] {$p$} -- ++(0+180:\r) --
                                 +(80:\r) node[above left] {$q$};
             \draw (0.766 * \r - 1 * \r, 0.6428 * \r) node[above right] {$r$};
             \draw (0.173 * \r - 1 * \r, 0.985 * \r) -- (0, 0);
@@ -201,7 +200,7 @@ recursive call, we have $8(n + |S_1| + |S_2|)$ bytes for the partition,
 and $8|CH(S_2)|$ bytes to place $CH(S_1)$ and $CH(S_2)$ next to each other in
 memory. This is $5.6$ GB, $73$ GB, $7.2$ GB for Kuzmin, Circle, and Disk.
 
-The data movement of our algorithm is not optimal. Take for example Disk:
+The data movement of Quickhull is not optimal. Take for example Disk:
 The Akl-Toussaint heuristic \cite{akl78} lets us identify $p_1, \cdots, p_8$
 of Figure~\ref{fig:akl} in one pass. This octagon has area $2\sqrt{2}$,
 which is approximately $90\%$ of the disk, and these points can be eliminated.
@@ -212,7 +211,7 @@ $\overrightarrow{p_i p_{i + 1 \text{ mod } 8}}$, or none if
 $u$ is inside the octagon.
 If we can partition the input into these eight areas
 in one pass as well, we need only $1.6 + 1.6 + 0.16 = 3.36$ GB to eliminate
-$90\%$ of points. Our algorithm gets to the same points in $3$ levels of
+$90\%$ of points. Quickhull gets to the same points in $3$ levels of
 recursion, which takes $6.5$ GB. So a better algorithm can cut the required
 bandwidth almost in half. To take this into account we also look at the minimum
 amount of data movement any algorithm can obtain: the size of the input plus

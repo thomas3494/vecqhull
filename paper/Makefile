@@ -2,9 +2,9 @@ SRC := paper.tex \
        abstract.tex \
        preliminaries.tex \
 	   intro.tex \
-	   quickhull.tex \
+	   related.tex \
 	   accuracy.tex \
-	   partition.tex \
+	   subset.tex \
 	   evaluation.tex \
 	   conclusion.tex \
        paper.bib
