@@ -4,9 +4,8 @@ The PBBS benchmark consists of three data sets. Each of these consists of
 $10^8$ points drawn from different distributions. Even though all data sets
 are $1.6$ GB in size, the algorithm behaves very differently on them.
 
-\tkcomment{TODO: do this properly. Also, do Qhull, CGAL give indices
-           or points? If they give indices too, why?}
-As a baseline we have considered Qhull, the algorithms of CGAL,
+\tkcomment{Move to related work?}
+As a baseline we have considered Qhull \cite{}, the algorithms of CGAL \cite{},
 and the implementation of PBBS. Some preliminary testing shows that the
 implementation of PBBS is the fastest by a large margin. In
 Table~\ref{table:reference} are the runtimes for a disk of $10^7$ points.
@@ -24,7 +23,7 @@ Table~\ref{table:reference} are the runtimes for a disk of $10^7$ points.
      CGAL Eddy & 0.98 \\
      CGAL Graham & 1.3 \\
      CGAL Jarvis & 208 \\
-     Qhull & TODO, but slow \\
+     Qhull & 1.1 \\
     \end{tabular}
 \end{table}
 
