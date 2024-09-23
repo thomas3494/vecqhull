@@ -2,12 +2,12 @@
 
 \subsection{Quickhull}
 
-The Quickhull algorithm makes use of two important facts illustrated by 
-Figure~\ref{fig:quickhull}. First, if $p$, $q$ are in the convex hull, then 
-any point $u$ with maximum distance to the line $\vec{pq}$, is in the convex 
-hull as well. Secondly, any point within the triangle $puq$ is not in the 
-convex hull. Only the points to the left of $pu$ and to the right of $uq$ 
-still need to be considered.
+The Quickhull algorithm makes use of two important facts 
+illustrated by Figure~\ref{fig:quickhull}. First, if $p$, $q$ are in the 
+convex hull, then any point $u$ with maximum distance to the line $\vec{pq}$, 
+is in the convex hull as well. Secondly, any point within the triangle 
+$puq$ is not in the convex hull. Only the points to the left of $pu$ and 
+to the right of $uq$ still need to be considered.
 
 \begin{figure}[ht]
     \centering
@@ -80,7 +80,7 @@ still need to be considered.
 
 This idea can be applied recursively to find the complex hull, starting with
 the left-most (highest in case of ties), and right-most (lowest in case of ties)
-points.
+points \cite{Barber96}.
 
 While it is intuitively clear what points are to the left of a line $pq$, or
 inside a triangle $prq$, it is not straightforward to define this precisely.

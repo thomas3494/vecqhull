@@ -5,39 +5,8 @@ We obtain a $1.5$~\textendash~$13\times$ sequentially and a
 $1.3$~\textendash~$8.6\times$ speedup in parallel. Our implementation performs
 best on an instruction set supporting SIMD compression instructions.
 
-We obtain roughly $80\%$ of our architecture's bandwidth, so to obtain 
+We obtain roughly $80\%$ of our architecture's bandwidth, so to obtain
 significant improvements future work should focus on finding a convex hull
 algorithm with lower bandwidth requirements. A step in this direction could
 be to efficiently vectorize and parallelise the Akl-Toussaint heuristic as
 described in Section~\ref{sec:evaluation}.
-As Quickhull resembles Quicksort, this heuristic resembles Samplesort.
-It may be possible to adept the branchless implementation of ips4o \cite{ips4o}.
-
-We have verified our output with the output of competing implementations, but
-discussion about the accuracy of Quickhull is missing and should be addressed
-by future work.
-
-\tkcomment{Move to related work?}
-As a baseline we have considered Qhull \cite{}, the algorithms of CGAL \cite{},
-and the implementation of PBBS. Some preliminary testing shows that the
-implementation of PBBS is the fastest by a large margin. In
-Table~\ref{table:reference} are the runtimes for a disk of $10^7$ points.
-
-\begin{table}[ht]
-    \caption{Runtime in seconds for a disk of $10^7$ points}
-    \label{table:reference}
-    \begin{tabular}{c | c }
-     Implementation & Runtime \\ 
-     \hline \\
-     PBBS & 0.31 \\  
-     CGAL Quickhull & 0.61 \\
-     CGAL Akl-Toussaint & 0.60 \\
-     CGAL Bykat & 0.73 \\
-     CGAL Eddy & 0.98 \\
-     CGAL Graham & 1.3 \\
-     CGAL Jarvis & 208 \\
-     Qhull & 1.1 \\
-    \end{tabular}
-\end{table}
-
-

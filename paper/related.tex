@@ -1,21 +1,27 @@
-\section{Related Work}
+\section{Related and Future Work}\label{sec:related}
 
-There are many algorithms for computing Convex Hulls \cite{}. The original
-authors of the Quickhull algorithm provide an implementation \cite{qhull},
-which works on arbitrary dimension. This and the other algorithms mentioned
-are implemented in the Computational Geometry Algorithms Library (CGAL) 
-\cite{cgal}.
+Finding planar convex hulls is a well-studied problem, there exist at least ten
+algorithms for solving it \cite{Graham72, Jarvis73, Eddy77, Preparata77, 
+Bykat78, Akl78, Andrew79, Clarkson93, Barber96, Chan96}. Putting our
+work in context also suggests several opportunities for future work.
 
-We have done some preliminary testing on a laptop with a disk of $10^7$ points,
-the results of which are summarized in Table~\ref{table:reference}.
+\subsection{CPU Performance}
+
+The original authors of Quickhull, the Computational Geometry Algorithms
+Library (CGAL) \cite{CGAL}, and the Problem Based Benchmark Suite (PBBS) 
+\cite{pbbs} provide implementations of Quickhull. CGAL also provides 
+implementations for some of the other algorithms.
+We did some preliminary testing on a laptop (Table~\ref{table:reference}).
+Based on these results we have decided to choose the Quickhull algorithm and
+compare against the implementation of PBBS.
 
 \begin{table}[ht]
     \caption{Runtime in seconds for a disk of $10^7$ points}
     \label{table:reference}
     \begin{tabular}{c | c }
-     Implementation & Runtime \\
+     Implementation & Runtime \\ 
      \hline \\
-     PBBS & 0.31 \\
+     PBBS & 0.31 \\  
      CGAL Quickhull & 0.61 \\
      CGAL Akl-Toussaint & 0.60 \\
      CGAL Bykat & 0.73 \\
@@ -26,8 +32,47 @@ the results of which are summarized in Table~\ref{table:reference}.
     \end{tabular}
 \end{table}
 
-\tkcomment{TODO: sorting stuff, accuracy}
+As mentioned in Section~\ref{sec:evaluation}, the performance of vqhull cannot
+be improved much without reducing the needed bandwidth. This can be done
+with the Akl-Toussaint heuristic. As Quickhull resembles Quicksort, this 
+heuristic resembles Samplesort. It may be possible to adept the branchless 
+implementation of ips4o \cite{ips4o}. The work on Quicksort from \cite{Bramas17}
+and \cite{francis92} were major inspirations for this algorithm.
 
-One could consider Super Scalar Sample Sort \cite{ssss} to be to the
-Akl-Toussaint heuristic as Quicksort is to Quickhull. A parallel and in-place
-variant of this is called ips4o \cite{ips4o}.
+\subsection{Precision}
+
+Though we have verified our output with the output of competing implementations,
+finding only $10\%$ of a shape that should be convex is surprising. The field
+of numerical analysis 
+\textemdash{}~see \cite{Higham02} for a thorough treatise~\textemdash{} gives
+us a rigourous way of reasoning about imprecision. It is important to note that
+this is not only about roundoff errors in floating point arithmetic. Input data
+in engineering is often imprecise due to physical measurements. 
+For any problem, imprecision in the input affects the output, regardless of what
+algorithm is used. The extent of this can be quantified by use of a
+\textit{condition number}, which tells us what the maximum attainable precision
+for our problem.
+Though this is usually applied to linear algebra, the authors of
+\cite{Jiang06} show that this analysis can also be applied to convex hulls,
+and that we should be able to expect accurate results (the condition number
+is $\sqrt{2}$). Not all algorithms achieve this accuracy \cite{Kettner08},
+but a modification of Graham Scan \cite{Fortune89} can.
+As far as the authors are aware, there is no analysis for Quickhull,
+which is an opportunity for future work.
+
+\subsection{GPU Performance}
+
+There is some work on computing convex hulls on Graphic Processor Units (GPUs)
+\cite{Srungarapu11}. They report a $16\times$ speedup compared to Qhull, which
+is not competetive with vqhull. However, single-threaded performance has not
+increased nearly at the rate of GPU performance, so this may have changed. Their
+implementation is not publically available.
+
+Quicksort is not the most suitable sorting algorithm for GPUs. We would like
+to suggest the following approach for a GPU implementation. Graham Scan consists
+of a $O(n \log n)$ sorting step, followed by a sequential step. This means that
+the majority of work can be done by one of the readily available and tuned
+sorting libraries. A preprocessing step such as Akl-Toussaint can speedup 
+distributions that contain many interior points. Parallelising the sequential
+step has been studied in the context of CRCW machines \cite{Goodrich87},
+which are similar to GPUs in their massive parallelism.
