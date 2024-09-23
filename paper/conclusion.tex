@@ -2,11 +2,6 @@
 
 We have seen ideas from sorting can be modified to fit Quickhull as well.
 We obtain a $1.5$~\textendash~$13\times$ sequentially and a 
-$1.3$~\textendash~$8.6\times$ speedup in parallel. Our implementation performs
+$1.3$~\textendash~$8.6\times$ speedup in parallel. We obtain roughly $80\%$
+of our architecture's bandwidth. Our implementation performs
 best on an instruction set supporting SIMD compression instructions.
-
-We obtain roughly $80\%$ of our architecture's bandwidth, so to obtain
-significant improvements future work should focus on finding a convex hull
-algorithm with lower bandwidth requirements. A step in this direction could
-be to efficiently vectorize and parallelise the Akl-Toussaint heuristic as
-described in Section~\ref{sec:evaluation}.
