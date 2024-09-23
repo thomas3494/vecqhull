@@ -22,8 +22,8 @@ outdir="$3"
 mkdir -p "$outdir"
 
 (
-cd code || exit
-BUILD=RELEASE make bin/test_quickhull
+cd code/examples || exit
+make test_quickhull
 )
 
 bench()
@@ -33,7 +33,7 @@ bench()
         i=1
         while [ $i -le "$iter" ]
         do
-            numactl --interleave all ./code/bin/test_quickhull b < data/"$name".bin
+            numactl --interleave all ./code/examples/test_quickhull m b < data/"$name".bin
             i=$(( i + 1 ))
         done
     } | awk '{

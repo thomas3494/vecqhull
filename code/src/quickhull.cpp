@@ -7,7 +7,6 @@
 #include "quickhull.h"
 #include "common.h"
 
-//#define MEASURE_BW
 #ifdef MEASURE_BW
 size_t read_bw     = 0;
 size_t write_bw    = 0;

@@ -1,12 +1,31 @@
-# Default, for benchmarking BUILD=RELEASE make
-BUILD ?= DEBUG
+# Customize below to fit your system
 
-CXX = g++
-CC = gcc
+# paths (unset $PCPREFIX to not install a pkg-config-file)
+PREFIX    ?= $(HOME)/.local
+INCPREFIX  = $(PREFIX)/include
+LIBPREFIX  = $(PREFIX)/lib
+MANPREFIX  = $(PREFIX)/share/man
+PCPREFIX   = $(LIBPREFIX)/pkgconfig
 
-# Do not use -Ofast / -ffast-math as this may break the evaluation of orient(p, q, p) to exact zero!
-FLAGS = -O3 -march=native -mtune=native -Wall -Wextra -Wno-unused-command-line-argument -Wno-deprecated -fopenmp
+# names
+ANAME     = libvqhull.a
+SONAME    = libvqhull.so.$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+
+# Flags. For debugging, call BUILD=DEBUG make. We rely on IEEE-754 here, so
+# do not use -ffast-math or -Ofast
+BUILD      ?= RELEASE
+FLAGS       = -O3 -march=native -mtune=native -Wall -Wextra -ffunction-sections -fdata-sections -fopenmp -nostdlib
 DEBUG_FLAGS = -fsanitize=address -fsanitize=undefined -ggdb
 RELEASE_FLAGS = -D NDEBUG
 FLAGS += $(${BUILD}_FLAGS)
-LFLAGS = -lm -fopenmp -lhwy
+LDFLAGS  = -lm -fopenmp -lhwy -Wl,--gc-sections
+
+SHFLAGS   = -fPIC -ffreestanding
+SOFLAGS   = -shared -nostdlib -Wl,--soname=libvqhull.so.$(VERSION_MAJOR).$(VERSION_MINOR)
+SOSYMLINK = true
+
+# tools (unset $LDCONFIG to not call ldconfig(1) after install/uninstall)
+CXX      = g++
+AR       = ar
+RANLIB   = ranlib
+LDCONFIG = ldconfig

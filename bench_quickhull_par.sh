@@ -22,8 +22,8 @@ outdir="$3"
 mkdir -p "$outdir"
 
 (
-cd code || exit
-BUILD=RELEASE make bin/test_quickhull_par
+cd code/examples || exit
+make test_quickhull_par
 )
 
 bench()
@@ -36,7 +36,7 @@ bench()
             # For cn125
 #            OMP_NUM_THREADS=8 numactl --interleave all -C 0-8 ./code/bin/test_quickhull_par b < data/"$name".bin
             # For cn132
-            numactl --interleave all ./code/bin/test_quickhull_par b < data/"$name".bin
+            numactl --interleave all ./code/examples/test_quickhull_par m b < data/"$name".bin
             i=$(( i + 1 ))
         done
     } | awk '{

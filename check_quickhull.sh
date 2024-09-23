@@ -17,8 +17,8 @@ fi
 n="$1"
 
 (
-cd code || exit
-make bin/test_quickhull bin/index2points
+cd code/examples || exit
+make test_quickhull index2points
 )
 
 (
@@ -33,11 +33,11 @@ check()
     echo ""
     echo "=============== $name ==============="
 
-    ./code/bin/test_quickhull p < data/"$name".in > data/"$name".quickhull.out
+    ./code/examples/test_quickhull p < data/"$name".in > data/"$name".quickhull.out
     ./pbbsbench/benchmarks/convexHull/serialHull/hull  \
                 -o data/"$name".pbbs_serial_indices.out \
                 data/"$name".in
-    ./code/bin/index2points data/"$name".in \
+    ./code/examples/index2points data/"$name".in \
             data/"$name".pbbs_serial_indices.out > \
             data/"$name".pbbs_serial.out
     if diff data/"$name".pbbs_serial.out data/"$name".quickhull.out; then

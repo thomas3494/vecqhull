@@ -1,50 +1,42 @@
-# TODO build system is sloppy, should handle the C++ / C distinction properly
-
 include config.mk
 
-ifneq ("$(wildcard ~/.local/include/rapl_energy.h)","")
-	LFLAGS += -lrapl_energy -DRAPL_ENERGY
-endif
+VERSION_MAJOR = 1
+VERSION_MINOR = 0
+VERSION_PATCH = 0
+MAN_DATE      = 2024-09-23
 
-.PHONY: all clean
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 
-all: bin/leftright_test bin/test_partition bin/test_partitionp bin/test_quickhull bin/index2points bin/text2bin bin/test_quickhull_par bin/precision
+MAN3    = $(wildcard man/man3/*)
 
-bin/common.o: src/common.cpp src/common.h
-	$(CXX) $(FLAGS) -c $< -o $@ $(LFLAGS)
+.PHONY: all clean install uninstall
 
-bin/quickhull.o: src/quickhull.cpp
-	$(CXX) $(FLAGS) -c $^ -o $@ $(LFLAGS)
+all: $(ANAME) $(SONAME)
 
-bin/leftright_test: src/leftright_test.c bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
+$(ANAME): vqhull.o
+	$(AR) -rc $@ $<
+	$(RANLIB) $@
 
-bin/test_partition: src/test_partition.c bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
+$(SONAME): vqhull.o
+	$(CXX) $< $(SOFLAGS) $(LDFLAGS) -o $@
 
-bin/test_partitionp: src/test_partitionp.c bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
+vqhull.o: src/vqhull.cpp include/vqhull.h
+	$(CXX) -Iinclude $(FLAGS) $(SHFLAGS) -c $< -o $@ $(LFLAGS)
 
-bin/test_quickhull: src/test_quickhull.c bin/quickhull.o bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
-
-bin/test_quickhull_par: src/test_quickhull_par.c bin/quickhull.o bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
-
-bin/precision: src/precision.c bin/quickhull.o bin/common.o
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
-
-bin/index2points: src/index2points.c
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
-
-bin/text2bin: src/text2bin.c
-	$(CXX) $(FLAGS) $^ -o $@ $(LFLAGS)
-
-bin/gen_circle: src/gen_circle.c
-	$(CC) $(FLAGS) $^ -o $@ -lm
-
-bin/cgal_bench: src/cgal_bench.cpp
-	$(CXX) $(FLAGS) $^ -o $@ -lgmp
+install: all
+	mkdir -p "$(DESTDIR)$(LIBPREFIX)"
+	mkdir -p "$(DESTDIR)$(INCPREFIX)"
+	mkdir -p "$(DESTDIR)$(MANPREFIX)/man3"
+	cp -f $(MAN3) "$(DESTDIR)$(MANPREFIX)/man3"
+	cp -f $(ANAME) "$(DESTDIR)$(LIBPREFIX)"
+	cp -f $(SONAME) "$(DESTDIR)$(LIBPREFIX)/$(SONAME)"
+	cp -f include/vqhull.h "$(DESTDIR)$(INCPREFIX)"
 
 clean:
-	$(RM) bin/*
+	$(RM) vqhull.o $(ANAME) $(SONAME)
+
+uninstall:
+	for m in $(MAN3); do $(RM) "$(DESTDIR)$(MANPREFIX)/man3/`basename $$m`"; done
+	$(RM) -f "$(DESTDIR)$(LIBPREFIX)/$(ANAME)"
+	$(RM) -f "$(DESTDIR)$(LIBPREFIX)/$(SONAME)"
+	$(RM) -f "$(DESTDIR)$(INCPREFIX)/vqhull.h"

@@ -155,17 +155,17 @@ int main(int argc, char **argv)
     size_t total1 = c1;
     size_t total2 = n - 2 - c2;
 
-    printf("Partition left:\n");
-    Point r1l, r2l;
-    size_t c1l, c2l;
-    TestPartition(total1, S1_1, S1_2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
-
-    printf("Partition right:\n");
-    Point r1r, r2r;
-    size_t c1r, c2r;
-    Points S2_1 = {S1_1.x + c2, S1_1.y + c2};
-    Points S2_2 = {S1_2.x + c2, S1_2.y + c2};
-    TestPartition(total2, S2_1, S2_2, q, r2, p, &r1r, &r2r, &c1r, &c2r);
+//    printf("Partition left:\n");
+//    Point r1l, r2l;
+//    size_t c1l, c2l;
+//    TestPartition(total1, S1_1, S1_2, p, r1, q, &r1l, &r2l, &c1l, &c2l);
+//
+//    printf("Partition right:\n");
+//    Point r1r, r2r;
+//    size_t c1r, c2r;
+//    Points S2_1 = {S1_1.x + c2, S1_1.y + c2};
+//    Points S2_2 = {S1_2.x + c2, S1_2.y + c2};
+//    TestPartition(total2, S2_1, S2_2, q, r2, p, &r1r, &r2r, &c1r, &c2r);
 
     free(P1.x);
     free(P1.y);
