@@ -1,3 +1,9 @@
+/**
+ * We always pivot around u. PBBS always pivots around the left-most point.
+ * According to INRIA that should be less accurate, but apparently not
+ * for circle.
+ **/
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,13 +64,35 @@ swap(Points P, size_t i, size_t j)
     P.y[j] = tempy;
 }
 
+static inline double 
+diff_of_products(double a, double b, double c, double d)
+{
+    double w = d * c;
+    double e = fmaf (c, -d, w);
+    double f = fmaf (a, b, -w);
+    return f + e;
+}
+
+static inline Vecd
+diff_of_products(Vecd a, Vecd b, Vecd c, Vecd d)
+{
+    Vecd w = d * c;
+    Vecd e = MulAdd(c, Neg(d), w);
+    Vecd f = MulSub(a, b, w);
+    return f + e;
+}
+
 /* If this is negative, then p, q, u is a right-turn.
  * Returns precisely 0 for q = p or q = u.
  * For p = u, it mathematically returns 0, but may give
  * a round-off error. */
 static inline double orient(Point p, Point u, Point q)
 {
+#if 0
     return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x);
+#else
+    return diff_of_products(p.x - u.x, q.y - u.y, p.y - u.y, q.x - u.x);
+#endif
 }
 
 static inline Vec<ScalableTag<double>> 
@@ -75,7 +103,11 @@ orientV(Vec<ScalableTag<double>> px,
         Vec<ScalableTag<double>> qx,
         Vec<ScalableTag<double>> qy)
 {
+#if 0
     return (px - ux) * (qy - uy) - (py - uy) * (qx - ux);
+#else
+    return diff_of_products(px - ux, qy - uy, py - uy, qx - ux);
+#endif
 }
 
 /**
@@ -93,7 +125,7 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
-    return (px - qx) * (u1y - u2y) > (py - qy) * (u1x - u2x);
+    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
 }
 
 /**
@@ -258,6 +290,46 @@ FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = rights[right];
 }
 
+static inline void
+qhull_hmax(Vecd max1x, Vecd max1y,
+           Vecd max2x, Vecd max2y,
+           Vecd px, Vecd py,
+           Vecd rx, Vecd ry,
+           Vecd qx, Vecd qy,
+           Point *max1_out, Point *max2_out)
+{
+    /* We compute the maximum of even and odd lanes in the lower
+     * half until we have one lane left. In practice 1 - 3 iterations
+     * per loop. */
+    const ScalableTag<double> d;
+
+    for (int lanes_left = Lanes(d); lanes_left > 1; lanes_left /= 2) {
+        auto max1xe = DupEven(max1x);
+        auto max1ye = DupEven(max1y);
+        auto max1xo = DupOdd(max1x);
+        auto max1yo = DupOdd(max1y);
+        auto mask1 = greater_orient(px, py, max1xe, max1ye, 
+                                    max1xo, max1yo, rx, ry);
+        max1x = IfThenElse(mask1, max1xe, max1xo);
+        max1y = IfThenElse(mask1, max1ye, max1yo);
+    }
+    max1_out->x = GetLane(max1x);
+    max1_out->y = GetLane(max1y);
+
+    for (int lanes_left = Lanes(d); lanes_left > 1; lanes_left /= 2) {
+        auto max2xe = DupEven(max2x);
+        auto max2ye = DupEven(max2y);
+        auto max2xo = DupOdd(max2x);
+        auto max2yo = DupOdd(max2y);
+        auto mask2 = greater_orient(rx, ry, max2xe, max2ye, 
+                                    max2xo, max2yo, qx, qy);
+        max2x = IfThenElse(mask2, max2xe, max2xo);
+        max2y = IfThenElse(mask2, max2ye, max2yo);
+    }
+    max2_out->x = GetLane(max2x);
+    max2_out->y = GetLane(max2y);
+}
+
 static inline void 
 qhull_hmax(Vecd omax1, Vecd omax2,
            Vecd max1x, Vecd max1y,
@@ -302,12 +374,15 @@ TriLoopBody(Vecd px, Vecd py,
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
 #if 0
-    mask1 = (orient(px, py, x_coor - max1x, y_coor - max1y, rx, ry) > 0);
-    mask2 = (orient(rx, ry, x_coor - max1x, y_coor - max1y, qx, qy) > 0);
+    auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
+    auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
     max1x = IfThenElse(mask1, x_coor, max1x);
     max1y = IfThenElse(mask1, y_coor, max1y);
     max2x = IfThenElse(mask2, x_coor, max2x);
     max2y = IfThenElse(mask2, y_coor, max2y);
+    /* TODO use greater_orient for qhull_hmax */
+    omax1 = Max(o1, omax1);
+    omax2 = Max(o2, omax2);
 #else
     /* The if statement is optional, but seems to be a bit (5%) faster. */
     if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
@@ -504,7 +579,12 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vRx, vRy);
 
+#if 1
     qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
+#else
+    qhull_hmax(max1x, max1y, max2x, max2y, 
+               px, py, rx, ry, qx, qy, r1_out, r2_out);
+#endif
 
     *c1_out = writeL;
     *c2_out = writeR;

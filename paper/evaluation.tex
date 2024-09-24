@@ -87,22 +87,14 @@ The convex hull has only $4$ points.
 A circle is convex, so all points are on the hull. As a circle is symmetric,
 each recursive call of FindHull will identify one element on the hull, and
 then recurse on two subsets $S_1$ and $S_2$ differing at most one in size.
-That means we have a deep recursion.
+That means we have a deep recursion. The convex hull contains $10985400$
+points.
 
-\textbf{A note on accuracy: }the convex hull of a circle is the circle itself.
-However, we only classify roughly one in ten points as lying on the convex
-hull. Our implementation disagrees on $20$ points. These are points $u$ for which
-$\text{orient}(p, u, r_1) > 0$ and $\text{orient}(r_2, u, q) > 0$ which can
-only happen due to round-off error. We have made the arbitrary decision to put
-these in $S_1$.
-
-The implementations agree on input sizes where all points are found. If we
-create a circle by computing 
-
-$$C_n := \left\{\left(\cos\left(\frac{2i\pi}{2^n}\right), \sin\left(\frac{2i\pi}{2^n}\right)\right) \ | \ 0 \leq i < 2^n\right\}$$
-
-and randomly permuting the points, we do get the same points back for at least
-$2^{27} \approx 1.3 \cdot 10^8$ points.
+\textbf{A note on accuracy: }we do not report the points
+$(1.00000000000000000e+00, 3.05581546451999979e-07)$ as lying on the convex
+hull, while PBBS does. We are correct here as this point is colinear with
+$(1.00000000000000000e+00, 9.37066525634000038e-07)$ and
+$(1.00000000000000000e+00, -9.34207940110999953e-07)$.
 
 \subsubsection{Disk}
 
