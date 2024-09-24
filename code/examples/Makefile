@@ -1,7 +1,7 @@
 CC = gcc
 CXX = g++
 FLAGS = -O3 -march=native -mtune=native
-LFLAGS = -lvqhull -fopenmp -lm -lstdc++
+LFLAGS = -lvqhull -fopenmp -lm
 EXAMPLES = $(filter-out util, $(patsubst %.c, %, $(wildcard *.c)))
 
 .PHONY: all clean

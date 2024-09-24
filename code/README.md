@@ -2,8 +2,10 @@
 
 ## Prerequisites
 
-[Highway](https://github.com/google/highway) and a C++ compiler.
+For building the library, you need [Highway](https://github.com/google/highway) and a C++ compiler.
 
+For using the library you need a C compiler, standard library, and an OpenMP
+implementation.
 
 ## Unix-like
 
@@ -22,9 +24,7 @@ and follow the steps above.
 
 # Usage
 
-You can compile programs by linking against `-lvqhull -lm -fopenmp -libstd++`.
-TODO: can we kill additional dependencies? I don't think we use anything from
-the C++ standard library.
+You can compile programs by linking against `-lvqhull -lm -fopenmp`.
 
 The provided functions are documented in the man pages. The directory
 `examples` contains some examples.

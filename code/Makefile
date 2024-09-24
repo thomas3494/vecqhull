@@ -28,6 +28,7 @@ install: all
 	mkdir -p "$(DESTDIR)$(INCPREFIX)"
 	mkdir -p "$(DESTDIR)$(MANPREFIX)/man3"
 	cp -f $(MAN3) "$(DESTDIR)$(MANPREFIX)/man3"
+	cp -f man/man7/vqhull.7 "$(DESTDIR)$(MANPREFIX)/man7"
 	cp -f $(ANAME) "$(DESTDIR)$(LIBPREFIX)"
 	cp -f $(SONAME) "$(DESTDIR)$(LIBPREFIX)/$(SONAME)"
 	cp -f include/vqhull.h "$(DESTDIR)$(INCPREFIX)"

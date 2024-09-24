@@ -1,0 +1,38 @@
+.Dd 2024-09-24
+.Dt LIBVQHULL 7
+.Sh NAME
+.Nm libvqhull
+.Nd planar convex hull library
+.Sh SYNOPSIS
+.In vqhull.h
+.Sh DESCRIPTION
+The
+.Nm
+library provides functions to compute convex hulls on central processing
+units efficiently.
+.Nm
+contains a sequential version, and a version that is parallelised with OpenMP.
+Currently, only double precision is supported.
+.Pp
+Every documented function's manual page provides a self-contained example
+illustrating the possible usage.
+.Sh SEE ALSO
+.Xr VecQuickhull 3 ,
+.Xr VecQuickhullP 3
+.Sh DEPENDENCIES
+.Nm
+depends on OpenMP and C math library. So link with
+-lvqhull -lm -fopenmp
+.Sh MOTIVATION
+Getting the full performance from a CPU requires effective use of
+vector aka SIMD instructions. 
+.Nm 
+is a vectorized version of the Quickhull
+algorithm in the 2D case. For higher dimensions and more general algorithms
+in computational geometry, check out
+.Sy qhull
+or
+.Sy CGAL
+.Sh AUTHORS
+.An Thomas Koopman Aq Mt thomas.koopman@ru.nl
+.An Jordy Aaldering Aq Mt jordy.aaldering@ru.nl
