@@ -62,20 +62,38 @@ swap(Points P, size_t i, size_t j)
  * Returns precisely 0 for q = p or q = u.
  * For p = u, it mathematically returns 0, but may give
  * a round-off error. */
-static inline double orient(Point p, Point q, Point u)
+static inline double orient(Point p, Point u, Point q)
 {
-    return (p.x - q.x) * (u.y - q.y) - (p.y - q.y) * (u.x - q.x);
+    return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x);
 }
 
 static inline Vec<ScalableTag<double>> 
 orientV(Vec<ScalableTag<double>> px,
         Vec<ScalableTag<double>> py,
-        Vec<ScalableTag<double>> qx,
-        Vec<ScalableTag<double>> qy,
         Vec<ScalableTag<double>> ux,
-        Vec<ScalableTag<double>> uy)
+        Vec<ScalableTag<double>> uy,
+        Vec<ScalableTag<double>> qx,
+        Vec<ScalableTag<double>> qy)
 {
-    return (px - qx) * (uy - qy) - (py - qy) * (ux - qx);
+    return (px - ux) * (qy - uy) - (py - uy) * (qx - ux);
+}
+
+/**
+ * Returns true if orient(p, u1, q) > orient(p, u2, q) 
+ **/
+static inline 
+bool greater_orient(Point p, Point u1, Point u2, Point q)
+{
+    return (p.x - q.x) * (u1.y - u2.y) > (p.y - q.y) * (u1.x - u2.x);
+}
+
+static inline Mask<ScalableTag<double>>
+greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
+               Vec<ScalableTag<double>> u1x, Vec<ScalableTag<double>> u1y,
+               Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
+               Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
+{
+    return (px - qx) * (u1y - u2y) > (py - qy) * (u1x - u2x);
 }
 
 /**
