@@ -65,7 +65,7 @@ swap(Points P, size_t i, size_t j)
 }
 
 static inline double 
-diff_of_products(double a, double b, double c, double d)
+diff_of_prod(double a, double b, double c, double d)
 {
     double w = d * c;
     double e = fmaf (c, -d, w);
@@ -74,7 +74,7 @@ diff_of_products(double a, double b, double c, double d)
 }
 
 static inline Vecd
-diff_of_products(Vecd a, Vecd b, Vecd c, Vecd d)
+diff_of_prod(Vecd a, Vecd b, Vecd c, Vecd d)
 {
     Vecd w = d * c;
     Vecd e = MulAdd(c, Neg(d), w);
@@ -82,16 +82,14 @@ diff_of_products(Vecd a, Vecd b, Vecd c, Vecd d)
     return f + e;
 }
 
-/* If this is negative, then p, q, u is a right-turn.
- * Returns precisely 0 for q = p or q = u.
- * For p = u, it mathematically returns 0, but may give
- * a round-off error. */
+/* If this is negative, then p, u, q is a right-turn.
+ * Returns precisely 0 for u = p or u = q. */
 static inline double orient(Point p, Point u, Point q)
 {
 #if 0
     return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x);
 #else
-    return diff_of_products(p.x - u.x, q.y - u.y, p.y - u.y, q.x - u.x);
+    return diff_of_prod(p.x - u.x, q.y - u.y, p.y - u.y, q.x - u.x);
 #endif
 }
 
@@ -106,7 +104,7 @@ orientV(Vec<ScalableTag<double>> px,
 #if 0
     return (px - ux) * (qy - uy) - (py - uy) * (qx - ux);
 #else
-    return diff_of_products(px - ux, qy - uy, py - uy, qx - ux);
+    return diff_of_prod(px - ux, qy - uy, py - uy, qx - ux);
 #endif
 }
 
@@ -125,7 +123,11 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
+#if 0
     return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
+#else
+    return IsNegative(diff_of_prod(px - qx, u1y - u2y, py - qy, u1x - u2x));
+#endif
 }
 
 /**
@@ -298,34 +300,40 @@ qhull_hmax(Vecd max1x, Vecd max1y,
            Vecd qx, Vecd qy,
            Point *max1_out, Point *max2_out)
 {
-    /* We compute the maximum of even and odd lanes in the lower
-     * half until we have one lane left. In practice 1 - 3 iterations
-     * per loop. */
     const ScalableTag<double> d;
 
-    for (int lanes_left = Lanes(d); lanes_left > 1; lanes_left /= 2) {
-        auto max1xe = DupEven(max1x);
-        auto max1ye = DupEven(max1y);
-        auto max1xo = DupOdd(max1x);
-        auto max1yo = DupOdd(max1y);
-        auto mask1 = greater_orient(px, py, max1xe, max1ye, 
-                                    max1xo, max1yo, rx, ry);
-        max1x = IfThenElse(mask1, max1xe, max1xo);
-        max1y = IfThenElse(mask1, max1ye, max1yo);
+    /**
+     * For example, if Lanes(d) = 4
+     * | A | B | C | D | ->
+     * max(
+     *    | A | B | C | D |
+     *    | C | D | 0 | 0 |
+     *    ) =
+     * | max(A, C) | max(B, D) | ... | ... ->
+     * max(
+     *      | max(A, C) | max(B, D) | ... | ...
+     *      | max(B, D) | ...       | ... | ...
+     *    ) =
+     * | max(max(A, C), max(B, D)) | ... | ... | ...
+     **/
+    for (int lanes = Lanes(d) / 2; lanes >= 1; lanes /= 2) {
+        auto max1x_slide = SlideDownLanes(d, max1x, lanes);
+        auto max1y_slide = SlideDownLanes(d, max1y, lanes);
+        auto mask1 = greater_orient(px, py, max1x, max1y, 
+                                    max1x_slide, max1y_slide, rx, ry);
+        max1x = IfThenElse(mask1, max1x, max1x_slide);
+        max1y = IfThenElse(mask1, max1y, max1y_slide);
+
+        auto max2x_slide = SlideDownLanes(d, max2x, lanes);
+        auto max2y_slide = SlideDownLanes(d, max2y, lanes);
+        auto mask2 = greater_orient(rx, ry, max2x, max2y, 
+                                    max2x_slide, max2y_slide, qx, qy);
+        max2x = IfThenElse(mask2, max2x, max2x_slide);
+        max2y = IfThenElse(mask2, max2y, max2y_slide);
+
     }
     max1_out->x = GetLane(max1x);
     max1_out->y = GetLane(max1y);
-
-    for (int lanes_left = Lanes(d); lanes_left > 1; lanes_left /= 2) {
-        auto max2xe = DupEven(max2x);
-        auto max2ye = DupEven(max2y);
-        auto max2xo = DupOdd(max2x);
-        auto max2yo = DupOdd(max2y);
-        auto mask2 = greater_orient(rx, ry, max2xe, max2ye, 
-                                    max2xo, max2yo, qx, qy);
-        max2x = IfThenElse(mask2, max2xe, max2xo);
-        max2y = IfThenElse(mask2, max2ye, max2yo);
-    }
     max2_out->x = GetLane(max2x);
     max2_out->y = GetLane(max2y);
 }
@@ -373,7 +381,7 @@ TriLoopBody(Vecd px, Vecd py,
     /* Finding r1, r2 */
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-#if 0
+#if 1
     auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
     auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
     max1x = IfThenElse(mask1, x_coor, max1x);
@@ -579,11 +587,11 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vRx, vRy);
 
-#if 1
-    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
-#else
+#if 0
     qhull_hmax(max1x, max1y, max2x, max2y, 
                px, py, rx, ry, qx, qy, r1_out, r2_out);
+#else
+    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
 #endif
 
     *c1_out = writeL;

@@ -17,7 +17,15 @@ fi
 n="$1"
 
 (
+cd code || exit
+make clean
+make uninstall
+make install
+)
+
+(
 cd code/examples || exit
+make clean
 make test_quickhull index2points
 )
 
@@ -33,7 +41,7 @@ check()
     echo ""
     echo "=============== $name ==============="
 
-    ./code/examples/test_quickhull p < data/"$name".in > data/"$name".quickhull.out
+    ./code/examples/test_quickhull p b < data/"$name".bin > data/"$name".quickhull.out
     ./pbbsbench/benchmarks/convexHull/serialHull/hull  \
                 -o data/"$name".pbbs_serial_indices.out \
                 data/"$name".in
