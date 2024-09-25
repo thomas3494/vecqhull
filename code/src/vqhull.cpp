@@ -1254,15 +1254,31 @@ size_t VecQuickhull(size_t n, Points P)
     P.y[lcount + 1] = q.y;
 
 #ifdef MEASURE_BW
-    printf("Total bw: %zu, read bw: %zu bytes, write bw: %zu, condese bw: %zu\n",
+    printf("Total bw: %zu, read bw: %zu bytes, write bw: %zu, "
+           "condese bw: %zu\n",
             read_bw + write_bw + condense_bw, read_bw, write_bw, condense_bw);
 #endif
 
     return 2 + lcount + rcount;
 }
 
+//#define PROFILE
+#ifdef PROFILE
+#include <sys/time.h>
+static double wtime(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)(tv.tv_usec / 1e6 + tv.tv_sec);
+}
+#endif
+
 size_t VecQuickhullP(size_t n, Points P)
 {
+#ifdef PROFILE
+    double time1 = wtime();
+#endif
+
     unsigned int nthreads;
     #pragma omp parallel master
     {
@@ -1284,6 +1300,10 @@ size_t VecQuickhullP(size_t n, Points P)
         swap(P, 0, left);
     }
 
+#ifdef PROFILE
+    double time2 = wtime();
+#endif
+
     Point r1, r2;
     size_t c1, c2;
     Points S1 = {P.x + 1, P.y + 1};
@@ -1291,6 +1311,10 @@ size_t VecQuickhullP(size_t n, Points P)
     size_t total1 = c1;
     size_t total2 = n - 2 - c2;
     Points S2 = {S1.x + c2, S1.y + c2};
+
+#ifdef PROFILE
+    double time3 = wtime();
+#endif
 
     unsigned int threads1 = roundf((double)total1 /
                                         (total1 + total2) * nthreads);
@@ -1321,11 +1345,22 @@ size_t VecQuickhullP(size_t n, Points P)
         }
     }
 
+#ifdef PROFILE
+    double time4 = wtime();
+#endif
+
     /* Put <p> <left hull> <q> <right hull> together */
     memmove(S1.x + lcount + 1, S2.x, rcount * sizeof(double));
     memmove(S1.y + lcount + 1, S2.y, rcount * sizeof(double));
     P.x[lcount + 1] = q.x;
     P.y[lcount + 1] = q.y;
+
+#ifdef PROFILE
+    double time5 = wtime();
+    fprintf(stderr, "Left right: %lf\nPartition: %lf\nRecursion: %lf\n"
+                    "Condense: %lf\n", time2 - time1, time3 - time2, 
+                    time4 - time3, time5 - time4);
+#endif
 
     return 2 + lcount + rcount;
 }
