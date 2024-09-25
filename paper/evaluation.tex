@@ -88,13 +88,9 @@ A circle is convex, so all points are on the hull. As a circle is symmetric,
 each recursive call of FindHull will identify one element on the hull, and
 then recurse on two subsets $S_1$ and $S_2$ differing at most one in size.
 That means we have a deep recursion. The convex hull contains $10985400$
-points.
-
-\textbf{A note on accuracy: }we do not report the points
-$(1.00000000000000000e+00, 3.05581546451999979e-07)$ as lying on the convex
-hull, while PBBS does. We are correct here as this point is colinear with
-$(1.00000000000000000e+00, 9.37066525634000038e-07)$ and
-$(1.00000000000000000e+00, -9.34207940110999953e-07)$.
+points.\footnote{PBBS finds one more point, this is incorrect. The data set
+contains three points with $x$-coordinate $1$. The middle one is colinear
+with the others and should therefore be discarded.}
 
 \subsubsection{Disk}
 
@@ -144,7 +140,7 @@ most points: a fraction $\frac{2}{\pi} \approx 0.637$.
 \end{figure}
 
 After this, the recursion will continue on pie slices of progressively smaller
-angle (Figure~\ref{fig:disk_level3+}. 
+angle (Figure~\ref{fig:disk_level3+}).
 The proportion of points eliminated is almost constant in this angle and roughly
 equal to $0.74$.
 %To see this, we label some points in Figure~\ref{fig:disk_level3+}. 

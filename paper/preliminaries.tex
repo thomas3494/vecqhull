@@ -10,65 +10,44 @@ $puq$ is not in the convex hull. Only the points to the left of $pu$ and
 to the right of $uq$ still need to be considered.
 
 \begin{figure}[ht]
-    \centering
-    \resizebox{0.5\columnwidth}{!}{%
+    \begin{subfigure}{0.45\textwidth}
+    % Generated with 20 points, width 5, height 8
+    \resizebox{\columnwidth}{!}{%
         \begin{tikzpicture}
-            \node (26_32) at (5.200, 6.400) {$\bullet$};
-            \node (26_9) at (5.200, 1.800) {$\bullet$};
-            \node (27_49) at (5.400, 9.800) {$\bullet$};
-            \node (37_18) at (7.400, 3.600) {$\bullet$};
-            \node (9_18) at (1.800, 3.600) {$\bullet$};
-            \node (16_14) at (3.200, 2.800) {$\bullet$};
-            \node (40_13) at (8.000, 2.600) {$\bullet$};
-            \node (22_17) at (4.400, 3.400) {$\bullet$};
-            \node (34_2) at (6.800, 0.400) {$\bullet$};
-            \node (37_4) at (7.400, 0.800) {$\bullet$};
-            \node (8_13) at (1.600, 2.600) {$\bullet$};
-            \node (r1) at (2.000, 0.200) {$r_1$};
-            \node (38_19) at (7.600, 3.800) {$\bullet$};
-            \node (r2) at (9.400, 9.200) {$r_2$};
-            \node (38_25) at (7.600, 5.000) {$\bullet$};
-            \node (11_16) at (2.200, 3.200) {$\bullet$};
-            \node (7_38) at (1.400, 7.600) {$\bullet$};
-            \node (27_37) at (5.400, 7.400) {$\bullet$};
-            \node (37_14) at (7.400, 2.800) {$\bullet$};
-            \node (5_48) at (1.000, 9.600) {$\bullet$};
-            \node (34_21) at (6.800, 4.200) {$\bullet$};
-            \node (14_24) at (2.800, 4.800) {$\bullet$};
-            \node (35_36) at (7.000, 7.200) {$\bullet$};
-            \node (43_21) at (8.600, 4.200) {$\bullet$};
-            \node (40_30) at (8.000, 6.000) {$\bullet$};
-            \node (25_48) at (5.000, 9.600) {$\bullet$};
-            \node (46_37) at (9.200, 7.400) {$\bullet$};
-            \node (q) at (9.800, 6.800) {$q$};
-            \node (8_49) at (1.600, 9.800) {$\bullet$};
-            \node (31_48) at (6.200, 9.600) {$\bullet$};
-            \node (26_42) at (5.200, 8.400) {$\bullet$};
-            \node (14_35) at (2.800, 7.000) {$\bullet$};
-            \node (32_41) at (6.400, 8.200) {$\bullet$};
-            \node (22_21) at (4.400, 4.200) {$\bullet$};
-            \node (7_29) at (1.400, 5.800) {$\bullet$};
-            \node (19_41) at (3.800, 8.200) {$\bullet$};
-            \node (1_33) at (0.200, 6.600) {$\bullet$};
-            \node (16_38) at (3.200, 7.600) {$\bullet$};
-            \node (19_11) at (3.800, 2.200) {$\bullet$};
-            \node (9_12) at (1.800, 2.400) {$\bullet$};
-            \node (42_36) at (8.400, 7.200) {$\bullet$};
-            \node (10_38) at (2.000, 7.600) {$\bullet$};
-            \node (25_12) at (5.000, 2.400) {$\bullet$};
-            \node (22_33) at (4.400, 6.600) {$\bullet$};
-            \node (13_5) at (2.600, 1.000) {$\bullet$};
-            \node (31_39) at (6.200, 7.800) {$\bullet$};
-            \node (p) at (0.000, 9.400) {$p$};
-            \node (24_32) at (4.800, 6.400) {$\bullet$};
-            \node (40_47) at (8.000, 9.400) {$\bullet$};
-            \node (6_47) at (1.200, 9.400) {$\bullet$};
+            \node (6_2) at (1.500, 0.800) {$\bullet$};
+            \node (16_9) at (4.000, 3.600) {$\bullet$};
+            \node (7_9) at (1.750, 3.600) {$\bullet$};
+            \node (7_18) at (1.750, 7.200) {$\bullet$};
+            \node (9_8) at (2.250, 3.200) {$\bullet$};
+            \node (16_14) at (4.000, 5.600) {$\bullet$};
+            \node (p) at (0.000, 5.200) {$p$};
+            \node (2_7) at (0.500, 2.800) {$\bullet$};
+            \node (r2) at (1.000, 0.800) {$r_2$};
+            \node (7_14) at (1.750, 5.600) {$\bullet$};
+            \node (8_13) at (2.000, 5.200) {$\bullet$};
+            \node (0_11) at (0.000, 4.400) {$\bullet$};
+            \node (r1) at (4.500, 7.600) {$r_1$};
+            \node (7_6) at (1.750, 2.400) {$\bullet$};
+            \node (q) at (4.500, 2.000) {$q$};
+            \node (1_16) at (0.250, 6.400) {$\bullet$};
+            \node (7_18) at (1.750, 7.200) {$\bullet$};
+            \node (17_7) at (4.250, 2.800) {$\bullet$};
+            \node (7_4) at (1.750, 1.600) {$\bullet$};
+            \node (5_8) at (1.250, 3.200) {$\bullet$};
 
-            \graph {(p) --[red] (q)};
-            \graph {(p) --[red] (r1)};
-            \graph {(r1) --[red] (q)};
-            \graph {(p) --[red] (r2)};
-            \graph {(r2) --[red] (q)};
+            \graph {(0_11) ->[red] (p)};
+            \graph {(p) ->[red] (1_16)};
+            \graph {(1_16) ->[red] (7_18)};
+            \graph {(7_18) ->[red] (r1)};
+            \graph {(r1) ->[red] (q)};
+            \graph {(q) ->[red] (6_2)};
+            \graph {(6_2) ->[red] (r2)};
+            \graph {(r2) ->[red] (0_11)};
+            \graph {(p) --[black] (q)};
+            \graph {(p) --[black] (r1)};
+            \graph {(r1) --[black] (q)};
+            \graph {(q) --[black] (r2)};
+            \graph {(r2) --[black] (p)};
         \end{tikzpicture}
     }
     \caption{The points $p$ and $q$ are the left-most and 
@@ -76,6 +55,40 @@ to the right of $uq$ still need to be considered.
              $r_2$ are furthest from the line $pq$, and also in the hull. Any
              point within the two triangles cannot be in the convex hull.}
     \label{fig:quickhull}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.45\textwidth}
+    \begin{algorithmic}[1]
+        \Require $P: $ set of points in $\mathbb{R}^2$
+        \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
+        \State Let $p$ be the left-most point
+        \State Let $q$ the right-most point
+        \State $S_1 := \{u \in P \ | \ clockwise(p, u, q)\}$
+        \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pq)$.
+        \State $S_2 := \{u \in P \ | \ clockwise(q, u, p)\}$
+        \State $r_2 := \argmax\limits_{u \in S_2}distance(u, pq)$.
+        \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $q$}
+                $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $q$, $r_2$, $p$}.
+        \Function{Hull}{P, p, r, q}
+            \If{$|P| \leq 1$}
+                \State Let $H = P$.
+            \Else{}
+                \State $S_1 := \{u \in P \ | \ clockwise(p, u, r)\}$.
+                \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
+                \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
+                \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
+                \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
+                       $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
+            \EndIf
+        \EndFunction
+    \caption{Quickhull algorithm. By slight abuse of notation, we assume that 
+             the sets are ordered, so that in $\{p\} \cup \{q\}$,
+             the point $q$ comes after $p$.}
+    \label{alg:quickhull_basic}
+    \end{algorithmic}
+    \end{subfigure}
+    \caption{The Quickhull algorithm. \tkcomment{Fix the spacing in else 
+             branch of algorithm.}}
 \end{figure}
 
 This idea can be applied recursively to find the complex hull, starting with
@@ -162,37 +175,7 @@ the length of $pq$ multiplied by the distance from $u$ to the line through
 $pq$. So $|orient(p, u, q)| > |orient(p, u', q)|$ if and only if $u$ is further
 from $pq$ than $u'$.
 
-This cumulates into Algorithm~\ref{alg:quickhull_basic}. By slight abuse
-of notation, we assume that the sets are ordered, so that in $\{p\} \cup \{q\}$,
-the point $q$ comes after $p$.
-
-\begin{algorithm}[ht]
-\begin{algorithmic}[1]
-    \caption{Quickhull algorithm}\label{alg:quickhull_basic}
-    \Require $P: $ set of points in $\mathbb{R}^2$
-    \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
-    \State Let $p$ be the left-most point in $P$, $q$ the right-most point.
-    \State Let $S_1 = \{u \in P \ | \ right\_turn(p, u, q)\}$
-    \State Let $r_1 = \argmax\limits_{u \in S_1}distance(u, pq)$.
-    \State Let $S_2 = \{u \in P \ | \ right\_turn(q, u, p) > 0\}$
-    \State Let $r_2 = \argmax\limits_{u \in S_2}distance(u, pq)$.
-    \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $q$}
-            $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $q$, $r_2$, $p$}.
-    \Function{FindHull}{P, p, r, q}
-        \If{$|P| \leq 1$}
-            \State Let $H = P$.
-        \Else
-            \State Let $S_1 = \{u \in P \ | \ right\_turn(p, u, r) > 0\}$.
-            \State Let $r_1 = \argmax\limits_{u \in S_1}distance(u, pr)$.
-            \State Let $S_2 = \{u \in P \ | \ right\_turn(r, u, q) > 0\}$
-            \State Let $r_2 = \argmax\limits_{u \in S_2}distance(u, rq)$.
-            \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $r$}
-                   $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $r$, $r_2$, $q$}
-        \EndIf
-    \EndFunction
-\end{algorithmic}
-\end{algorithm}
-
+This cumulates into Algorithm~\ref{alg:quickhull_basic}. 
 
 \subsection{Perfomance Considerations}
 
