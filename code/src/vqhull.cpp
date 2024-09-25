@@ -1,39 +1,30 @@
-/**
- * We always pivot around u. PBBS always pivots around the left-most point.
- * According to INRIA that should be less accurate, but apparently not
- * for circle.
- **/
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <omp.h>
 #include <math.h>
-#include <sys/time.h>
 #include <float.h>
 #include <hwy/highway.h>
-#include <hwy/print-inl.h>
 #include "vqhull.h"
 
 using namespace hwy::HWY_NAMESPACE;
 
+/******************************************************************************
+ * Type definitions
+ *****************************************************************************/
+
 typedef Vec<ScalableTag<double>> Vecd;
 typedef Vec<ScalableTag<size_t>> Veci;
-
-/**
- * Type definitions
- **/
 
 typedef struct {
     double x;
     double y;
 } Point;
 
-/**
+/*****************************************************************************
  * Utility functions
- **/
+ *****************************************************************************/
 
 static inline size_t 
 ceildiv(size_t a, size_t b)
@@ -64,64 +55,83 @@ swap(Points P, size_t i, size_t j)
     P.y[j] = tempy;
 }
 
-static inline double 
-diff_of_prod(double a, double b, double c, double d)
-{
-    double w = d * c;
-    double e = fmaf (c, -d, w);
-    double f = fmaf (a, b, -w);
-    return f + e;
-}
-
-static inline Vecd
-diff_of_prod(Vecd a, Vecd b, Vecd c, Vecd d)
-{
-    Vecd w = d * c;
-    Vecd e = MulAdd(c, Neg(d), w);
-    Vecd f = MulSub(a, b, w);
-    return f + e;
-}
+/*****************************************************************************
+ * Geometric tests
+ ****************************************************************************/
 
 /**
- * TODO: we do not need to compute the orient, only its sign.
+ * We test orient(p, u, q) > 0, where 
+ *    orient(p, u, q) = (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x)
+ * To evaluate this accurately, we use that
+ *   x * y = RN(x * y) + RN(RN(x * y) - x * y)
+ * where RN stands for round nearest. In other words, we can compute
+ *   xy_l = x * y;
+ *   xy_s = fma(-x, y, xy_l);
+ * and xy_l - xy_s is exactly equal to the true product of x and y.
+ *
+ * Let 
+ *    a = (p.x - u.x)
+ *    b = (q.y - u.y)
+ *    c = (p.y - u.y)
+ *    d = (q.x - u.x)
+ * Then the test is equivalent to 
+ *    ab - cd > 0  <=>
+ *    ab_l - ab_s - cd_l + cd_s > 0 <=>
+ *    ab_l - cd_l > ab_s - cd_s
+ * Naively, we would have tested ab_l - cd_l > 0, so this gains us some
+ * precision at a small expense in flops.
  **/
-/* If this is negative, then p, u, q is a right-turn.
- * Returns precisely 0 for u = p or u = q. */
-static inline double orient(Point p, Point u, Point q)
+static inline bool
+right_turn(Point p, Point u, Point q)
 {
-#if 0
-    return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x);
-#else
-    return diff_of_prod(p.x - u.x, q.y - u.y, p.y - u.y, q.x - u.x);
-#endif
+    double a = p.x - u.x;
+    double b = q.y - u.y;
+    double c = p.y - u.y;
+    double d = q.x - u.x;
+    double ab_l = a * b;
+    double ab_s = fma(-a, b, ab_l);
+    double cd_l = c * d;
+    double cd_s = fma(-c, d, cd_l);
+    return (ab_l - cd_l > ab_s - cd_s);
 }
 
-static inline Vec<ScalableTag<double>> 
-orientV(Vec<ScalableTag<double>> px,
-        Vec<ScalableTag<double>> py,
-        Vec<ScalableTag<double>> ux,
-        Vec<ScalableTag<double>> uy,
-        Vec<ScalableTag<double>> qx,
-        Vec<ScalableTag<double>> qy)
+static inline Mask<ScalableTag<double>> 
+right_turn(Vec<ScalableTag<double>> px,
+           Vec<ScalableTag<double>> py,
+           Vec<ScalableTag<double>> ux,
+           Vec<ScalableTag<double>> uy,
+           Vec<ScalableTag<double>> qx,
+           Vec<ScalableTag<double>> qy)
 {
-#if 0
-    return (px - ux) * (qy - uy) - (py - uy) * (qx - ux);
-#else
-    return diff_of_prod(px - ux, qy - uy, py - uy, qx - ux);
-#endif
+    auto a = px - ux;
+    auto b = qy - uy;
+    auto c = py - uy;
+    auto d = qx - ux;
+    auto ab_l = a * b;
+    auto ab_s = MulAdd(Neg(a), b, ab_l);
+    auto cd_l = c * d;
+    auto cd_s = MulAdd(Neg(c), d, cd_l);
+    return (ab_l - cd_l > ab_s - cd_s);
 }
 
 /**
  * Returns true if orient(p, u1, q) > orient(p, u2, q) 
+ * This is equivalent to
+ *     (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x)
+ * We do the same technique as with right_turn.
  **/
 static inline bool
 greater_orient(Point p, Point u1, Point u2, Point q)
 {
-#if 0
-    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
-#else
-    return (diff_of_prod(p.x - q.x, u1.y - u2.y, p.y - q.y, u1.x - u2.x) < 0);
-#endif
+    double a = p.x - q.x;
+    double b = u1.y - u2.y;
+    double c = p.y - q.y;
+    double d = u1.x - u2.x;
+    double ab_l = a * b;
+    double ab_s = fma(-a, b, ab_l);
+    double cd_l = c * d;
+    double cd_s = fma(-c, d, cd_l);
+    return (ab_l - cd_l < ab_s - cd_s);
 }
 
 static inline Mask<ScalableTag<double>>
@@ -130,16 +140,20 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
-#if 0
-    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
-#else
-    return IsNegative(diff_of_prod(px - qx, u1y - u2y, py - qy, u1x - u2x));
-#endif
+    auto a = px - qx;
+    auto b = u1y - u2y;
+    auto c = py - qy;
+    auto d = u1x - u2x;
+    auto ab_l = a * b;
+    auto ab_s = MulAdd(Neg(a), b, ab_l);
+    auto cd_l = c * d;
+    auto cd_s = MulAdd(Neg(c), d, cd_l);
+    return (ab_l - cd_l < ab_s - cd_s);
 }
 
-/**
- * Main Quickhull components
- **/
+/******************************************************************************
+ * Finding initial points on the hull
+ *****************************************************************************/
 
 /* Adapted from https://en.algorithmica.org/hpc/algorithms/argmin */
 static void 
@@ -297,6 +311,10 @@ FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = rights[right];
 }
 
+/******************************************************************************
+ * Partitioning
+ *****************************************************************************/
+
 static inline void
 qhull_hmax(Vecd max1x, Vecd max1y,
            Vecd max2x, Vecd max2y,
@@ -354,8 +372,6 @@ TriLoopBody(Vecd px, Vecd py,
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
-    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
     auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
     auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
     max1x = IfThenElse(mask1, x_coor, max1x);
@@ -363,9 +379,11 @@ TriLoopBody(Vecd px, Vecd py,
     max2x = IfThenElse(mask2, x_coor, max2x);
     max2y = IfThenElse(mask2, y_coor, max2y);
 
-    /* Partition */
-    auto maskL = (o1 > Zero(d));
-    auto maskR = And((o2 > Zero(d)), Not(maskL));
+    /* Partition. Mathematically, we cannot have a right turn for both
+     * p, u, r and r, u, q. However, this can happen due to rounding error.
+     * We make the arbitrary decision to move these points to the left. */
+    auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
+    auto maskR = And(right_turn(rx, ry, x_coor, y_coor, qx, qy), Not(maskL));
     /* No blended store necessary because we write from left to right */
     size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
     CompressStore(y_coor, maskL, d, P.y + writeL);
@@ -388,11 +406,6 @@ TriLoopBodyPartial(Vecd px, Vecd py,
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
-    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-
-    o1 = IfThenElse(FirstN(d, n), o1, Zero(d));
-    o2 = IfThenElse(FirstN(d, n), o2, Zero(d));
     auto mask1 = And(greater_orient(px, py, x_coor, y_coor, max1x, max1y,
                                     rx, ry),
                      FirstN(d, n));
@@ -405,12 +418,13 @@ TriLoopBodyPartial(Vecd px, Vecd py,
     max2y = IfThenElse(mask2, y_coor, max2y);
 
     /* Partition */
-    auto maskL = (o1 > Zero(d));
+    auto maskL = And(right_turn(px, py, x_coor, y_coor, rx, ry), FirstN(d, n));
+    auto maskR = And(right_turn(rx, ry, x_coor, y_coor, qx, qy), FirstN(d, n));
+    maskR = And(maskR, Not(maskL));
     size_t num_l = CountTrue(d, maskL);
     CompressBlendedStore(x_coor, maskL, d, P.x + writeL);
     CompressBlendedStore(y_coor, maskL, d, P.y + writeL);
     writeL += num_l;
-    auto maskR = And((o2 > Zero(d)), Not(maskL));
     size_t num_r = CountTrue(d, maskR);
     writeR -= num_r;
     CompressBlendedStore(x_coor, maskR, d, P.x + writeR);
@@ -500,18 +514,6 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     vRx = LoadU(d, P.x + readR);
     vRy = LoadU(d, P.y + readR);
 
-    /**
-     * 5 gflops on 4 GHz avx2, 8-9 gflops on 2.6 - 4.8 GHz avx512.
-     *
-     * Is this reasonable? It seems slow, but then there are a lot of
-     * instructions other than the actual orientation computation, so may
-     * be limited by data movement operations. There are also
-     * register spills on avx2.
-     *
-     * Kuzmin being 10% faster than Circle, Disk is because the
-     * (cap_left <= cap_right) branch is easier to predict. Doing it branchless
-     * is not worth it on either zen2 or Skylake.
-     **/
     while (readL + Lanes(d) <= readR) {
         size_t cap_left = readL - writeL;
         size_t cap_right = writeR - readR;
@@ -657,8 +659,6 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
-    auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
-    auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
     auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
     auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
     max1x = IfThenElse(mask1, x_coor, max1x);
@@ -667,7 +667,8 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     max2y = IfThenElse(mask2, y_coor, max2y);
 
     /* Partition */
-    auto maskL = (o1 > Zero(d));
+    auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
+    auto maskR = And(right_turn(rx, ry, x_coor, y_coor, qx, qy), Not(maskL));
     size_t num_l = CountTrue(d, maskL);
     auto tempxL = Compress(x_coor, maskL);
     auto tempyL = Compress(y_coor, maskL);
@@ -675,7 +676,6 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
     Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
 
-    auto maskR = And((o2 > Zero(d)), Not(maskL));
     size_t num_r = CountTrue(d, maskR);
     Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
     auto tempxR = Compress(x_coor, maskR);
@@ -711,7 +711,6 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
-    /* To silence warnings */
     max1x = rx;
     max1y = ry;
     max2x = rx;
@@ -826,12 +825,12 @@ static void dnf(Points P, size_t start, size_t end,
 
         if (u.x == DBL_MAX) {
             j += 1;
-        } else if (orient(p, u, r) > 0) {
+        } else if (right_turn(p, u, r)) {
             swap(P, i, j);
             i += 1;
             j += 1;
-        } else /* if (orient(r, u, q) > 0) */ {
-            assert((orient(r, u, q) > 0));
+        } else {
+            assert(right_turn(r, u, q));
 
             k -= 1;
             swap(P, j, k);
@@ -870,7 +869,7 @@ static void dnf_gap(Points P, size_t start, size_t end,
             if (j == gap_start) {
                 j = gap_end;
             }
-        } else if (orient(p, u, r) > 0) {
+        } else if (right_turn(p, u, r)) {
             swap(P, i, j);
 
             i += 1;
@@ -882,8 +881,8 @@ static void dnf_gap(Points P, size_t start, size_t end,
             if (j == gap_start) {
                 j = gap_end;
             }
-        } else /* if (orient(r, u, q) > 0) */ {
-            assert(orient(r, u, q) > 0);
+        } else {
+            assert(right_turn(r, u, q));
             if (k == gap_end) {
                 k = gap_start - 1;
             } else {
@@ -1193,9 +1192,9 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     *r2_out = r2;
 }
 
-/**
- * Quickhull implementation
- **/
+/******************************************************************************
+ * Quickhull Algorithm
+ *****************************************************************************/
 
 #ifdef MEASURE_BW
 size_t read_bw     = 0;
@@ -1203,17 +1202,12 @@ size_t write_bw    = 0;
 size_t condense_bw = 0;
 #endif
 
-/* Forward declarations */
 static size_t FindHull(size_t n, Points P, Point p, Point r, Point q);
 static size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
                         unsigned int nthreads);
 
 size_t VecQuickhull(size_t n, Points P)
 {
-    /* Find the points with left-most and right-most x-coordinate.
-     * (In case of ties, with bottom and top y-coordinate.)
-     * These are guaranteed to be on the convex hull, and will be our
-     * first bisection. */
 #ifdef MEASURE_BW
     /* Most of the time, we read only x-coordinates */
     read_bw += n * sizeof(Point) / 2;
@@ -1277,10 +1271,6 @@ size_t VecQuickhullP(size_t n, Points P)
 
     omp_set_max_active_levels(nthreads);
 
-    /* Find the points with left-most and right-most x-coordinate.
-     * (In case of ties, with bottom and top y-coordinate.)
-     * These are guaranteed to be on the convex hull, and will be our
-     * first bisection. */
     size_t left, right;
     FindLeftRightVP(n, P, &left, &right);
     Point p = {P.x[left], P.y[left]};

@@ -25,7 +25,6 @@ SHFLAGS   = -fPIC
 SOFLAGS   = -shared -nostdlib -Wl,--soname=libvqhull.so.$(VERSION_MAJOR).$(VERSION_MINOR)
 SOSYMLINK = true
 
-# tools (unset $LDCONFIG to not call ldconfig(1) after install/uninstall)
 CXX      = g++
 AR       = ar
 RANLIB   = ranlib

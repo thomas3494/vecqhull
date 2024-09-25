@@ -23,6 +23,7 @@ $(SONAME): vqhull.o
 vqhull.o: src/vqhull.cpp include/vqhull.h
 	$(CXX) -Iinclude $(FLAGS) $(SHFLAGS) -c $< -o $@ $(LDFLAGS)
 
+# TODO not sure if I handle the shared library correctly...
 install: all
 	mkdir -p "$(DESTDIR)$(LIBPREFIX)"
 	mkdir -p "$(DESTDIR)$(INCPREFIX)"
