@@ -1,0 +1,4 @@
+*
+!*.c
+!cgal_bench.cpp
+!.gitignore
