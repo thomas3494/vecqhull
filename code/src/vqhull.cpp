@@ -62,7 +62,7 @@ swap(Points P, size_t i, size_t j)
 /**
  * We test orient(p, u, q) > 0, where 
  *    orient(p, u, q) = (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x)
- * To evaluate this accurately, we use that
+ * We can evaluate this more accurately by using that
  *   x * y = RN(x * y) + RN(RN(x * y) - x * y)
  * where RN stands for round nearest. In other words, we can compute
  *   xy_l = x * y;
@@ -84,6 +84,9 @@ swap(Points P, size_t i, size_t j)
 static inline bool
 right_turn(Point p, Point u, Point q)
 {
+#if ACCURATE
+    return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x) > 0;
+#else
     double a = p.x - u.x;
     double b = q.y - u.y;
     double c = p.y - u.y;
@@ -93,6 +96,7 @@ right_turn(Point p, Point u, Point q)
     double cd_l = c * d;
     double cd_s = fma(-c, d, cd_l);
     return (ab_l - cd_l > ab_s - cd_s);
+#endif
 }
 
 static inline Mask<ScalableTag<double>> 
@@ -103,6 +107,9 @@ right_turn(Vec<ScalableTag<double>> px,
            Vec<ScalableTag<double>> qx,
            Vec<ScalableTag<double>> qy)
 {
+#if ACCURATE
+    return (px - ux) * (qy - uy) > (py - uy) * (qx - ux);
+#else
     auto a = px - ux;
     auto b = qy - uy;
     auto c = py - uy;
@@ -112,6 +119,7 @@ right_turn(Vec<ScalableTag<double>> px,
     auto cd_l = c * d;
     auto cd_s = MulAdd(Neg(c), d, cd_l);
     return (ab_l - cd_l > ab_s - cd_s);
+#endif
 }
 
 /**
@@ -123,6 +131,10 @@ right_turn(Vec<ScalableTag<double>> px,
 static inline bool
 greater_orient(Point p, Point u1, Point u2, Point q)
 {
+    /* Here the accurate version is necessary to validate on PBBS benchmark. */
+#if ACCURATE
+    return (p.x - q.x) * (u1.y - u2.y) < (p.y - q.y) * (u1.x - u2.x);
+#else
     double a = p.x - q.x;
     double b = u1.y - u2.y;
     double c = p.y - q.y;
@@ -132,6 +144,7 @@ greater_orient(Point p, Point u1, Point u2, Point q)
     double cd_l = c * d;
     double cd_s = fma(-c, d, cd_l);
     return (ab_l - cd_l < ab_s - cd_s);
+#endif
 }
 
 static inline Mask<ScalableTag<double>>
@@ -140,6 +153,9 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
+#if ACCURATE
+    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
+#else
     auto a = px - qx;
     auto b = u1y - u2y;
     auto c = py - qy;
@@ -149,6 +165,7 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
     auto cd_l = c * d;
     auto cd_s = MulAdd(Neg(c), d, cd_l);
     return (ab_l - cd_l < ab_s - cd_s);
+#endif
 }
 
 /******************************************************************************
@@ -1262,7 +1279,7 @@ size_t VecQuickhull(size_t n, Points P)
     return 2 + lcount + rcount;
 }
 
-//#define PROFILE
+#define PROFILE
 #ifdef PROFILE
 #include <sys/time.h>
 static double wtime(void)
