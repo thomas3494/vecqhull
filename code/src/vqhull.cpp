@@ -339,39 +339,9 @@ qhull_hmax(Vecd max1x, Vecd max1y,
 }
 
 static inline void 
-qhull_hmax(Vecd omax1, Vecd omax2,
-           Vecd max1x, Vecd max1y,
-           Vecd max2x, Vecd max2y,
-           Point *max1_out, Point *max2_out)
-{
-    const ScalableTag<double> d;
-
-    double omax1_arr[Lanes(d)];
-    double omax2_arr[Lanes(d)];
-    size_t i1 = 0;
-    size_t i2 = 0;
-    StoreU(omax1, d, omax1_arr);
-    StoreU(omax2, d, omax2_arr);
-    for (size_t i = 1; i < Lanes(d); i++) {
-        if (omax1_arr[i] > omax1_arr[i1]) {
-            i1 = i;
-        }
-        if (omax2_arr[i] > omax2_arr[i2]) {
-            i2 = i;
-        }
-    }
-
-    max1_out->x = ExtractLane(max1x, i1);
-    max1_out->y = ExtractLane(max1y, i1);
-    max2_out->x = ExtractLane(max2x, i2);
-    max2_out->y = ExtractLane(max2y, i2);
-}
-
-static inline void 
 TriLoopBody(Vecd px, Vecd py,
             Vecd rx, Vecd ry,
             Vecd qx, Vecd qy,
-            Vecd &omax1, Vecd &omax2,
             Vecd &max1x, Vecd &max1y,
             Vecd &max2x, Vecd &max2y,
             Points P, size_t &writeL, size_t &writeR,
@@ -381,27 +351,12 @@ TriLoopBody(Vecd px, Vecd py,
     /* Finding r1, r2 */
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-#if 1
     auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
     auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
     max1x = IfThenElse(mask1, x_coor, max1x);
     max1y = IfThenElse(mask1, y_coor, max1y);
     max2x = IfThenElse(mask2, x_coor, max2x);
     max2y = IfThenElse(mask2, y_coor, max2y);
-    /* TODO use greater_orient for qhull_hmax */
-    omax1 = Max(o1, omax1);
-    omax2 = Max(o2, omax2);
-#else
-    /* The if statement is optional, but seems to be a bit (5%) faster. */
-    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
-        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
-    }
-#endif
 
     /* Partition */
     auto maskL = (o1 > Zero(d));
@@ -420,7 +375,6 @@ static inline void
 TriLoopBodyPartial(Vecd px, Vecd py,
                    Vecd rx, Vecd ry,
                    Vecd qx, Vecd qy,
-                   Vecd &omax1, Vecd &omax2,
                    Vecd &max1x, Vecd &max1y,
                    Vecd &max2x, Vecd &max2y,
                    Points P, size_t n,
@@ -431,17 +385,19 @@ TriLoopBodyPartial(Vecd px, Vecd py,
     /* Finding r1, r2 */
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-    o1 = IfThenElse(FirstN(d, n), o1, Set(d, -DBL_MAX));
-    o2 = IfThenElse(FirstN(d, n), o2, Set(d, -DBL_MAX));
-    /* The if statement is optional, but seems to be a bit (5%) faster. */
-    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
-        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
-    }
+
+    o1 = IfThenElse(FirstN(d, n), o1, Zero(d));
+    o2 = IfThenElse(FirstN(d, n), o2, Zero(d));
+    auto mask1 = And(greater_orient(px, py, x_coor, y_coor, max1x, max1y,
+                                    rx, ry),
+                     FirstN(d, n));
+    auto mask2 = And(greater_orient(rx, ry, x_coor, y_coor, max2x, max2y,
+                                    qx, qy),
+                     FirstN(d, n));
+    max1x = IfThenElse(mask1, x_coor, max1x);
+    max1y = IfThenElse(mask1, y_coor, max1y);
+    max2x = IfThenElse(mask2, x_coor, max2x);
+    max2y = IfThenElse(mask2, y_coor, max2y);
 
     /* Partition */
     auto maskL = (o1 > Zero(d));
@@ -469,11 +425,8 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     const ScalableTag<double> d;
 
     Vecd max1x, max1y, max2x, max2y, x_coor, y_coor,
-         px, py, rx, ry, qx, qy, omax1, omax2,
+         px, py, rx, ry, qx, qy,
          vLx, vLy, vRx, vRy;
-
-    omax1 = Set(d, -DBL_MAX);
-    omax2 = Set(d, -DBL_MAX);
 
     px = Set(d, p.x);
     py = Set(d, p.y);
@@ -481,8 +434,9 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
-    /* To silence warnings. If these are unitialized, they are not
-     * used by VecQuickhull[P]. */
+    /* We do not have to make a case distinction n < Lanes(d) when
+     * computing the horizontal maxes this way
+     * because orient(p, r, r) = orient(r, r, q) = 0. */
     max1x = rx;
     max1y = ry;
     max2x = rx;
@@ -508,10 +462,9 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
         x_coor = LoadN(d, P.x, n);
         y_coor = LoadN(d, P.y, n);
         TriLoopBodyPartial(px, py, rx, ry, qx, qy,
-                           omax1, omax2, max1x, max1y,
-                           max2x, max2y, P, n,
+                           max1x, max1y, max2x, max2y, P, n,
                            writeL, writeR, x_coor, y_coor);
-        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
+        qhull_hmax(max1x, max1y, max2x, max2y, px, py, rx, ry, qx, qy,
                    r1_out, r2_out);
         *c1_out = writeL;
         *c2_out = writeR;
@@ -522,15 +475,13 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
         auto x_coor2 = LoadN(d, P.x + Lanes(d), n % Lanes(d));
         auto y_coor2 = LoadN(d, P.y + Lanes(d), n % Lanes(d));
         TriLoopBody(px, py, rx, ry, qx, qy,
-                    omax1, omax2, max1x, max1y,
-                    max2x, max2y, P,
+                    max1x, max1y, max2x, max2y, P,
                     writeL, writeR, x_coor, y_coor);
         TriLoopBodyPartial(px, py, rx, ry, qx, qy,
-                           omax1, omax2, max1x, max1y,
-                           max2x, max2y, P, n % Lanes(d),
+                           max1x, max1y, max2x, max2y, P, n % Lanes(d),
                            writeL, writeR, x_coor2, y_coor2);
 
-        qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y,
+        qhull_hmax(max1x, max1y, max2x, max2y, px, py, rx, ry, qx, qy,
                    r1_out, r2_out);
 
         *c1_out = writeL;
@@ -569,7 +520,7 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
             y_coor = LoadU(d, P.y + readR);
         }
 
-        TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
+        TriLoopBody(px, py, rx, ry, qx, qy,
                     max1x, max1y, max2x, max2y,
                     P, writeL, writeR, x_coor, y_coor);
    }
@@ -577,22 +528,17 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
     x_coor = LoadN(d, P.x + readL, readR - readL);
     y_coor = LoadN(d, P.y + readL, readR - readL);
     TriLoopBodyPartial(px, py, rx, ry, qx, qy,
-                       omax1, omax2, max1x, max1y,
-                       max2x, max2y, P, readR - readL,
+                       max1x, max1y, max2x, max2y, P, readR - readL,
                        writeL, writeR, x_coor, y_coor);
-    TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
+    TriLoopBody(px, py, rx, ry, qx, qy,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vLx, vLy);
-    TriLoopBody(px, py, rx, ry, qx, qy, omax1, omax2,
+    TriLoopBody(px, py, rx, ry, qx, qy,
                 max1x, max1y, max2x, max2y,
                 P, writeL, writeR, vRx, vRy);
 
-#if 0
     qhull_hmax(max1x, max1y, max2x, max2y, 
                px, py, rx, ry, qx, qy, r1_out, r2_out);
-#else
-    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
-#endif
 
     *c1_out = writeL;
     *c2_out = writeR;
@@ -853,13 +799,15 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                          writeRk, writeRj, vRx, vRy,
                          block, nthreads);
 
-    qhull_hmax(omax1, omax2, max1x, max1y, max2x, max2y, r1_out, r2_out);
+    qhull_hmax(max1x, max1y, max2x, max2y, px, py, rx, ry, qx, qy,
+               r1_out, r2_out);
 
     *c1_out = writeLk + writeLj;
     *c2_out = writeRk + writeRj;
 
     *total1_out = Blockcyc_Dist(writeLk, writeLj, start, 0, nthreads);
-    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj, nthreads);
+    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj,
+                                nthreads);
 }
 
 /**
