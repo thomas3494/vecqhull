@@ -62,6 +62,8 @@ swap(Points P, size_t i, size_t j)
 /**
  * We test orient(p, u, q) > 0, where 
  *    orient(p, u, q) = (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x)
+ *  or equivalently
+ *    orient(p, u, q) = (u.y - p.y) * (q.x - p.x) - (u.x - p.x) * (q.y - p.y)
  * We can evaluate this more accurately by using that
  *   x * y = RN(x * y) + RN(RN(x * y) - x * y)
  * where RN stands for round nearest. In other words, we can compute
@@ -79,13 +81,15 @@ swap(Points P, size_t i, size_t j)
  *    ab_l - ab_s - cd_l + cd_s > 0 <=>
  *    ab_l - cd_l > ab_s - cd_s
  * Naively, we would have tested ab_l - cd_l > 0, so this gains us some
- * precision at a small expense in flops.
+ * precision.
  **/
 static inline bool
 right_turn(Point p, Point u, Point q)
 {
-#if ACCURATE
-    return (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x) > 0;
+#if 1
+    /* Second variant allows us to pull q.y - p.y and q.x - p.x out
+     * of the loop. TODO: verify the compiler does this */
+    return (u.x - p.x) * (q.y - p.y) < (u.y - p.y) * (q.x - p.x);
 #else
     double a = p.x - u.x;
     double b = q.y - u.y;
@@ -107,8 +111,8 @@ right_turn(Vec<ScalableTag<double>> px,
            Vec<ScalableTag<double>> qx,
            Vec<ScalableTag<double>> qy)
 {
-#if ACCURATE
-    return (px - ux) * (qy - uy) > (py - uy) * (qx - ux);
+#if 1
+    return (ux - px) * (qy - py) < (uy - py) * (qx - px);
 #else
     auto a = px - ux;
     auto b = qy - uy;
@@ -125,15 +129,15 @@ right_turn(Vec<ScalableTag<double>> px,
 /**
  * Returns true if orient(p, u1, q) > orient(p, u2, q) 
  * This is equivalent to
- *     (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x)
+ *     (qx - px) * (u1y - u2y) > (qy - py) * (u1x - u2x)
  * We do the same technique as with right_turn.
  **/
 static inline bool
 greater_orient(Point p, Point u1, Point u2, Point q)
 {
     /* Here the accurate version is necessary to validate on PBBS benchmark. */
-#if ACCURATE
-    return (p.x - q.x) * (u1.y - u2.y) < (p.y - q.y) * (u1.x - u2.x);
+#if 1
+    return (q.x - p.x) * (u1.y - u2.y) > (q.y - p.y) * (u1.x - u2.x);
 #else
     double a = p.x - q.x;
     double b = u1.y - u2.y;
@@ -153,8 +157,8 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
-#if ACCURATE
-    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
+#if 1
+    return (qx - px) * (u1y - u2y) > (qy - py) * (u1x - u2x);
 #else
     auto a = px - qx;
     auto b = u1y - u2y;
