@@ -1,9 +1,9 @@
 #!/bin/sh
 
 #SBATCH --account=csmpi
-#SBATCH --partition=csmpi_fpga_long
+#SBATCH --partition=csmpi_long
 #SBATCH --mem=0
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=16
 #SBATCH --time=1:00:00
 #SBATCH --output=bench_quickhull_par.out
 
@@ -42,9 +42,9 @@ bench()
         while [ $i -le "$iter" ]
         do
             # For cn125
-#            OMP_NUM_THREADS=8 numactl --interleave all -C 0-8 ./code/bin/test_quickhull_par b < data/"$name".bin
+            OMP_NUM_THREADS=8 numactl --interleave all -C 0-8 ./code/examples/test_quickhull_par m b < data/"$name".bin
             # For cn132
-            numactl --interleave all ./code/examples/test_quickhull_par m b < data/"$name".bin
+#            numactl --interleave all ./code/examples/test_quickhull_par m b < data/"$name".bin
             i=$(( i + 1 ))
         done
     } | awk '{

@@ -1283,7 +1283,7 @@ size_t VecQuickhull(size_t n, Points P)
     return 2 + lcount + rcount;
 }
 
-#define PROFILE
+//#define PROFILE
 #ifdef PROFILE
 #include <sys/time.h>
 static double wtime(void)
