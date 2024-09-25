@@ -169,23 +169,23 @@ the point $q$ comes after $p$.
 \begin{algorithm}[ht]
 \begin{algorithmic}[1]
     \caption{Quickhull algorithm}\label{alg:quickhull_basic}
-    \Require $P: $ set of points in $\mathbb{R}^2$,
+    \Require $P: $ set of points in $\mathbb{R}^2$
     \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
     \State Let $p$ be the left-most point in $P$, $q$ the right-most point.
-    \State Let $S_1 = \{u \in P \ | \ orient(p, u, q) > 0\}$
-    \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, q)$.
-    \State Let $S_2 = \{u \in P \ | \ orient(q, u, p) > 0\}$
-    \State Let $r_2 = \argmax\limits_{u \in S_2}orient(q, u, p)$.
+    \State Let $S_1 = \{u \in P \ | \ right\_turn(p, u, q)\}$
+    \State Let $r_1 = \argmax\limits_{u \in S_1}distance(u, pq)$.
+    \State Let $S_2 = \{u \in P \ | \ right\_turn(q, u, p) > 0\}$
+    \State Let $r_2 = \argmax\limits_{u \in S_2}distance(u, pq)$.
     \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $q$}
             $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $q$, $r_2$, $p$}.
     \Function{FindHull}{P, p, r, q}
         \If{$|P| \leq 1$}
             \State Let $H = P$.
         \Else
-            \State Let $S_1 = \{u \in P \ | \ orient(p, u, r) > 0\}$.
-            \State Let $r_1 = \argmax\limits_{u \in S_1}orient(p, u, r)$.
-            \State Let $S_2 = \{u \in P \ | \ orient(r, u, q) > 0\}$
-            \State Let $r_2 = \argmax\limits_{u \in S_2}orient(r, u, q)$.
+            \State Let $S_1 = \{u \in P \ | \ right\_turn(p, u, r) > 0\}$.
+            \State Let $r_1 = \argmax\limits_{u \in S_1}distance(u, pr)$.
+            \State Let $S_2 = \{u \in P \ | \ right\_turn(r, u, q) > 0\}$
+            \State Let $r_2 = \argmax\limits_{u \in S_2}distance(u, rq)$.
             \State Let $H = \{p\} \cup $ \Call{FindHull}{$S_1$, $p$, $r_1$, $r$}
                    $\cup \{q\} \cup$ \Call{FindHull}{$S_2$, $r$, $r_2$, $q$}
         \EndIf
