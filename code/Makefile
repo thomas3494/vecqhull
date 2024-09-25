@@ -21,7 +21,7 @@ $(SONAME): vqhull.o
 	$(CXX) $< $(SOFLAGS) $(LDFLAGS) -o $@
 
 vqhull.o: src/vqhull.cpp include/vqhull.h
-	$(CXX) -Iinclude $(FLAGS) $(SHFLAGS) -c $< -o $@ $(LFLAGS)
+	$(CXX) -Iinclude $(FLAGS) $(SHFLAGS) -c $< -o $@ $(LDFLAGS)
 
 install: all
 	mkdir -p "$(DESTDIR)$(LIBPREFIX)"

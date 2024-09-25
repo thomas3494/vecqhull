@@ -82,6 +82,9 @@ diff_of_prod(Vecd a, Vecd b, Vecd c, Vecd d)
     return f + e;
 }
 
+/**
+ * TODO: we do not need to compute the orient, only its sign.
+ **/
 /* If this is negative, then p, u, q is a right-turn.
  * Returns precisely 0 for u = p or u = q. */
 static inline double orient(Point p, Point u, Point q)
@@ -111,10 +114,14 @@ orientV(Vec<ScalableTag<double>> px,
 /**
  * Returns true if orient(p, u1, q) > orient(p, u2, q) 
  **/
-static inline 
-bool greater_orient(Point p, Point u1, Point u2, Point q)
+static inline bool
+greater_orient(Point p, Point u1, Point u2, Point q)
 {
-    return (p.x - q.x) * (u1.y - u2.y) > (p.y - q.y) * (u1.x - u2.x);
+#if 0
+    return (px - qx) * (u1y - u2y) < (py - qy) * (u1x - u2x);
+#else
+    return (diff_of_prod(p.x - q.x, u1.y - u2.y, p.y - q.y, u1.x - u2.x) < 0);
+#endif
 }
 
 static inline Mask<ScalableTag<double>>
@@ -134,8 +141,7 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
  * Main Quickhull components
  **/
 
-/* Adapted from
- * https://en.algorithmica.org/hpc/algorithms/argmin */
+/* Adapted from https://en.algorithmica.org/hpc/algorithms/argmin */
 static void 
 FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
 {
@@ -269,7 +275,6 @@ FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
             rights[me] += start;
         }
     }
-
 
     size_t left = 0;
     size_t right = 0;
@@ -642,7 +647,6 @@ static __attribute__((always_inline)) inline void
 Blockcyc_TriLoopBody(Vecd px, Vecd py,
                      Vecd rx, Vecd ry,
                      Vecd qx, Vecd qy,
-                     Vecd &omax1, Vecd &omax2,
                      Vecd &max1x, Vecd &max1y,
                      Vecd &max2x, Vecd &max2y,
                      Points P,
@@ -655,15 +659,12 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     /* Finding r1, r2 */
     auto o1 = orientV(px, py, x_coor, y_coor, rx, ry);
     auto o2 = orientV(rx, ry, x_coor, y_coor, qx, qy);
-    /* The if statement is optional, but seems to be a bit (5%) faster. */
-    if (HWY_UNLIKELY(!AllFalse(d, Or((o1 > omax1), (o2 > omax2))))) {
-        max1x = IfThenElse(o1 > omax1, x_coor, max1x);
-        max1y = IfThenElse(o1 > omax1, y_coor, max1y);
-        max2x = IfThenElse(o2 > omax2, x_coor, max2x);
-        max2y = IfThenElse(o2 > omax2, y_coor, max2y);
-        omax1 = Max(o1, omax1);
-        omax2 = Max(o2, omax2);
-    }
+    auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
+    auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
+    max1x = IfThenElse(mask1, x_coor, max1x);
+    max1y = IfThenElse(mask1, y_coor, max1y);
+    max2x = IfThenElse(mask2, x_coor, max2x);
+    max2y = IfThenElse(mask2, y_coor, max2y);
 
     /* Partition */
     auto maskL = (o1 > Zero(d));
@@ -702,8 +703,7 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     const ScalableTag<double> d;
 
     Vecd max1x, max1y, max2x, max2y, x_coor, y_coor,
-         px, py, rx, ry, qx, qy, omax1, omax2,
-         vLx, vLy, vRx, vRy;
+         px, py, rx, ry, qx, qy, vLx, vLy, vRx, vRy;
 
     px = Set(d, p.x);
     py = Set(d, p.y);
@@ -711,8 +711,6 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     ry = Set(d, r.y);
     qx = Set(d, q.x);
     qy = Set(d, q.y);
-    omax1 = Set(d, -DBL_MAX);
-    omax2 = Set(d, -DBL_MAX);
     /* To silence warnings */
     max1x = rx;
     max1y = ry;
@@ -772,8 +770,7 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
          * by reference. */
         assert((writeRk + writeRj) / block % nthreads == start / block);
         Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                             omax1, omax2, max1x, max1y,
-                             max2x, max2y, P, writeLk, writeLj,
+                             max1x, max1y, max2x, max2y, P, writeLk, writeLj,
                              writeRk, writeRj, x_coor, y_coor,
                              block, nthreads);
         assert((writeRk + writeRj) / block % nthreads == start / block);
@@ -787,15 +784,13 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     /* vL, vR */
     assert((writeRk + writeRj) / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         omax1, omax2, max1x, max1y,
-                         max2x, max2y, P, writeLk, writeLj,
+                         max1x, max1y, max2x, max2y, P, writeLk, writeLj,
                          writeRk, writeRj, vLx, vLy,
                          block, nthreads);
 
     assert((writeRk + writeRj) / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         omax1, omax2, max1x, max1y,
-                         max2x, max2y, P, writeLk, writeLj,
+                         max1x, max1y, max2x, max2y, P, writeLk, writeLj,
                          writeRk, writeRj, vRx, vRy,
                          block, nthreads);
 
@@ -978,6 +973,7 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         Point r1, r2;
 
         size_t start = me * block;
+        assert(n - me * block >= 2 * Lanes(d));
         TriPartititionBlockCyc(n, P, p, r, q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
                                start, block, nthreads);
@@ -1008,12 +1004,10 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total2 += total2s[t][0];
 
         /* Argmax over empty set is undefined */
-        if ((total1s[t][0] != 0) &&
-                orient(p, r1s[t][0], r) > orient(p, r1, r)) {
+        if ((total1s[t][0] != 0) && greater_orient(p, r1s[t][0], r1, r)) {
             r1 = r1s[t][0];
         }
-        if ((total2s[t][0] != 0) &&
-                orient(r, r2s[t][0], q) > orient(r, r2, q)) {
+        if ((total2s[t][0] != 0) && greater_orient(r, r2s[t][0], r2, q)) {
             r2 = r2s[t][0];
         }
 
@@ -1084,12 +1078,10 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         assert(c1_left_over <= c2_left_over);
         assert(c2_left_over <= n_end);
 
-        if ((c1_left_over > 0) &&
-                (orient(p, r1_left_over, r) > orient(p, r1, r))) {
+        if ((c1_left_over > 0) && greater_orient(p, r1_left_over, r1, r)) {
             r1 = r1_left_over;
         }
-        if ((c2_left_over < n_end) &&
-                (orient(r, r2_left_over, q) > orient(r, r2, q))) {
+        if ((c2_left_over < n_end) && greater_orient(r, r2_left_over, r2, q)) {
             r2 = r2_left_over;
         }
 
@@ -1145,12 +1137,10 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         assert(c1_left_over <= c2_left_over);
         assert(c2_left_over <= n_off);
 
-        if ((c1_left_over > 0) &&
-                (orient(p, r1_left_over, r) > orient(p, r1, r))) {
+        if ((c1_left_over > 0) && greater_orient(p, r1_left_over, r1, r)) {
             r1 = r1_left_over;
         }
-        if ((c2_left_over < n_off) &&
-                (orient(r, r2_left_over, q) > orient(r, r2, q))) {
+        if ((c2_left_over < n_off) && greater_orient(r, r2_left_over, r2, q)) {
             r2 = r2_left_over;
         }
 
@@ -1372,9 +1362,6 @@ size_t FindHull(size_t n, Points P, Point p, Point r, Point q)
     size_t rcount = FindHull(total2, S2, r, r2, q);
 
     /* Condense left and right hull into contiguous memory */
-    /* TODO: we have to move everything because the order of right hull
-     * matters. We could also have cut the last part of S2 before,
-     * the recursive call, potentially moving less data. */
     memmove(S1.x + lcount + 1, S2.x, rcount * sizeof(double));
     memmove(S1.y + lcount + 1, S2.y, rcount * sizeof(double));
 

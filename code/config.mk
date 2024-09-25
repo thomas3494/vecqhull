@@ -19,6 +19,7 @@ DEBUG_FLAGS = -fsanitize=address -fsanitize=undefined -ggdb
 RELEASE_FLAGS = -D NDEBUG
 FLAGS += $(${BUILD}_FLAGS)
 LDFLAGS  = -lm -fopenmp -lhwy -Wl,--gc-sections
+LDFLAGS += $(${BUILD}_FLAGS)
 
 SHFLAGS   = -fPIC
 SOFLAGS   = -shared -nostdlib -Wl,--soname=libvqhull.so.$(VERSION_MAJOR).$(VERSION_MINOR)
