@@ -137,7 +137,7 @@ greater_orient(Point p, Point u1, Point u2, Point q)
 {
     /* Here the accurate version is necessary to validate on PBBS benchmark. */
 #if 1
-    return (q.x - p.x) * (u1.y - u2.y) > (q.y - p.y) * (u1.x - u2.x);
+    return (q.y - p.y) * (u1.x - u2.x) < (q.x - p.x) * (u1.y - u2.y);
 #else
     double a = p.x - q.x;
     double b = u1.y - u2.y;
@@ -400,11 +400,13 @@ TriLoopBody(Vecd px, Vecd py,
     max2x = IfThenElse(mask2, x_coor, max2x);
     max2y = IfThenElse(mask2, y_coor, max2y);
 
-    /* Partition. Mathematically, we cannot have a right turn for both
-     * p, u, r and r, u, q. However, this can happen due to rounding error.
-     * We make the arbitrary decision to move these points to the left. */
+    /* Partition. */
     auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
-    auto maskR = And(right_turn(rx, ry, x_coor, y_coor, qx, qy), Not(maskL));
+    auto maskR = right_turn(rx, ry, x_coor, y_coor, qx, qy);
+    /* Mathematically it is impossible to make a right turn pur and ruq,
+     * but maskL and maskR can both evaluate to true due to rounding error.
+     * To avoid out-of-bound writes in that case we do the following check. */
+    maskR = And(maskR, Not(maskL));
     /* No blended store necessary because we write from left to right */
     size_t num_l = CompressStore(x_coor, maskL, d, P.x + writeL);
     CompressStore(y_coor, maskL, d, P.y + writeL);
@@ -689,7 +691,8 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
 
     /* Partition */
     auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
-    auto maskR = And(right_turn(rx, ry, x_coor, y_coor, qx, qy), Not(maskL));
+    auto maskR = right_turn(rx, ry, x_coor, y_coor, qx, qy);
+    maskR = And(maskR, Not(maskL));
     size_t num_l = CountTrue(d, maskL);
     auto tempxL = Compress(x_coor, maskL);
     auto tempyL = Compress(y_coor, maskL);

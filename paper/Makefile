@@ -1,10 +1,10 @@
 SRC := paper.tex \
        abstract.tex \
-       preliminaries.tex \
 	   intro.tex \
-	   related.tex \
+       preliminaries.tex \
 	   accuracy.tex \
 	   subset.tex \
+	   related.tex \
 	   evaluation.tex \
 	   conclusion.tex \
        paper.bib
