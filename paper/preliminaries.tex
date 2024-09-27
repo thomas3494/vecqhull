@@ -10,7 +10,7 @@ $puq$ is not in the convex hull. Only the points to the left of $pu$ and
 to the right of $uq$ still need to be considered.
 
 \begin{figure}[ht]
-    \begin{subfigure}{0.45\textwidth}
+    \begin{minipage}[t]{0.49\textwidth}
     % Generated with 20 points, width 5, height 8
     \resizebox{\columnwidth}{!}{%
         \begin{tikzpicture}
@@ -55,45 +55,40 @@ to the right of $uq$ still need to be considered.
              $r_2$ are furthest from the line $pq$, and also in the hull. Any
              point within the two triangles cannot be in the convex hull.}
     \label{fig:quickhull}
-    \end{subfigure}
+    \end{minipage}
     \hfill
-    \begin{subfigure}{0.45\textwidth}
+    \begin{minipage}{0.49\textwidth}
+    \begin{algorithm}[H] % Must disable floating for minipage
     \begin{algorithmic}[1]
-        \Require $P: $ set of points in $\mathbb{R}^2$
+        \Require $P: $ set of points in $\mathbb{R}^2$ 
+            and $p, r, q \in CH(P)$ in clockwise order.
         \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
-        \State Let $p$ be the left-most point
-        \State Let $q$ the right-most point
-        \State $S_1 := \{u \in P \ | \ clockwise(p, u, q)\}$
-        \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pq)$.
-        \State $S_2 := \{u \in P \ | \ clockwise(q, u, p)\}$
-        \State $r_2 := \argmax\limits_{u \in S_2}distance(u, pq)$.
-        \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $q$}
-                $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $q$, $r_2$, $p$}.
-        \Function{Hull}{P, p, r, q}
-            \If{$|P| \leq 1$}
-                \State Let $H = P$.
-            \Else{}
-                \State $S_1 := \{u \in P \ | \ clockwise(p, u, r)\}$.
-                \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
-                \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
-                \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
-                \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
-                       $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
-            \EndIf
-        \EndFunction
-    \caption{Quickhull algorithm. By slight abuse of notation, we assume that 
-             the sets are ordered, so that in $\{p\} \cup \{q\}$,
-             the point $q$ comes after $p$.}
-    \label{alg:quickhull_basic}
+        \If{$|P| \leq 1$}
+            \State Let $H = P$.
+        \Else
+            \State $S_1 := \{u \in P \ | \ clockwise(p, u, r)\}$.
+            \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
+            \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
+            \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
+            \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
+                   $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
+        \EndIf
     \end{algorithmic}
-    \end{subfigure}
-    \caption{The Quickhull algorithm. \tkcomment{Fix the spacing in else 
-             branch of algorithm.}}
+    \caption{Quickhull algorithm. Typically initialized with $p, q$ the 
+             left-most point, $r$ the right-most.}
+    \label{alg:quickhull_basic}
+    \end{algorithm}
+    \end{minipage}
+    \caption{The Quickhull algorithm. \tkcomment{TODO: put the algorithm
+             in a function without messing up the spacing.}}
 \end{figure}
 
 This idea can be applied recursively to find the complex hull, starting with
 the left-most (highest in case of ties), and right-most (lowest in case of ties)
-points \cite{Barber96}.
+points \cite{Barber96}, which gives Algorithm~\ref{alg:quickhull_basic}.
+Note that if multiple points maximize the distance to $pr$ or $rq$, we may add
+a point that is on the convex hull, but not a vertex of the convex hull.
+So this is not necessarily a minimal representation.
 
 While it is intuitively clear what points are to the left of a line $pq$, or
 inside a triangle $prq$, it is not straightforward to define this precisely.

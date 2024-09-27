@@ -21,7 +21,7 @@ by adjacent vertices.
 
 Computing this list is the convex hull problem. There exist many algorithms for 
 this \cite{}, of which we find Quickhull to be the fastest (see
-Section~\ref{sec:perf}). This algorithm resembles Quicksort in that
+Section~\ref{sec:evaluation}). This algorithm resembles Quicksort in that
 it recursively splits the points into two sets. Unlike Quicksort however,
 more points than just the pivot may be discarded. Moreover, we are not
 free to choose the pivot, which turns out to make parallelisation challenging.
