@@ -63,24 +63,33 @@ to the right of $uq$ still need to be considered.
         \Require $P: $ set of points in $\mathbb{R}^2$ 
             and $p, r, q \in CH(P)$ in clockwise order.
         \Ensure $H: $ vertices of convex hull of $P$ in clockwise order.
-        \If{$|P| \leq 1$}
-            \State Let $H = P$.
-        \Else
-            \State $S_1 := \{u \in P \ | \ clockwise(p, u, r)\}$.
-            \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
-            \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
-            \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
-            \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
-                   $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
-        \EndIf
+        \State Let $p$ be the left-most point
+        \State Let $q$ the right-most point
+        \State $S_1 := \{u \in P \ | \ clockwise(p, u, q)\}$
+        \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pq)$.
+        \State $S_2 := \{u \in P \ | \ clockwise(q, u, p)\}$
+        \State $r_2 := \argmax\limits_{u \in S_2}distance(u, pq)$.
+        \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $q$}
+                $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $q$, $r_2$, $p$}.
+        \Function{Hull}{P, p, r, q}
+            \If{$|P| \leq 1$}
+                \State Let $H = P$.
+            \Else{}
+                \State $S_1 := \{u \in P \ | \ clockwise(p, u, r)\}$.
+                \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
+                \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
+                \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
+                \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
+                       $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
+            \EndIf
+        \EndFunction
     \end{algorithmic}
     \caption{Quickhull algorithm. Typically initialized with $p, q$ the 
              left-most point, $r$ the right-most.}
     \label{alg:quickhull_basic}
     \end{algorithm}
     \end{minipage}
-    \caption{The Quickhull algorithm. \tkcomment{TODO: put the algorithm
-             in a function without messing up the spacing.}}
+    \caption{The Quickhull algorithm. \tkcomment{Fix latex}}
 \end{figure}
 
 This idea can be applied recursively to find the complex hull, starting with
