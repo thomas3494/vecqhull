@@ -1,5 +1,96 @@
 \section{Numerical Robustness}
 
+\tkcomment{Survey and comments on related work}
+
+Let $d$ be the Hausdorff distance between two sets 
+(\url{https://en.wikipedia.org/wiki/Hausdorff_distance}).
+
+\url{https://web.archive.org/web/20170809013621/http://www.iro.umontreal.ca/~stewart/JiangStewart11page.pdf} suggests the following way of defining the error of 
+computed hull $\widehat{CH(P)}$. If $\widehat{CH(P)}$ is not a subset of $CH(P)$,
+the error is infinite, otherwise it is
+
+$$d(\widehat{CH(P)}, P) / M$$
+
+where $M$ is the maximum absolute value of any $x$-coordinate or $y$-coordinate.
+
+The condition $\widehat{CH(P)} \subseteq CH(P)$ may make sense from a 
+backward-error analysis approach as a non-convex set is no solution for any
+input, let alone a slightly perturbed one. But I think this is unreasonably
+strong, and that if we drop this requirement we have a reasonable analogue
+for a stable algorithm (mixed forward/backward analysis).
+
+The paper also says
+
+\begin{displayquote}
+    On the other hand, a slight modification of the Graham-Fortune algorithm of
+    \cite{Fortune89} is numerically stable, that is, the computed answer is 
+    such that it is the exact solution for a perturbed problem for which the
+    relative perturbation bound in problem space is at most $O(n\epsilon)$,
+    where $\epsilon$ is the relative error of floating-point arithmetic.
+\end{displayquote}
+
+I can't really make sense of the referenced papers, especially as they also
+reference to a 600 page book that does not seem to say anything about convex
+hulls...
+
+I also have the following problems / confusions with this statement.
+
+\begin{itemize}
+    \item What is described is backward stable, not numerically stable, at
+          least as defined by Higham as mixed backward/forward stable.
+    \item If we perturb the input by $\delta$, the convex hull is perturbed
+          by relative error $\sqrt{2}$, so why is a linear error-bound
+          considered stable? 
+          For $n = 10^8$ that means \texttt{double} input gives us essentially 
+          \texttt{float} output,
+          but experimentally the algorithm appears to do better than this.
+\end{itemize}
+
+The idea behind the $O(n \epsilon)$ error bound is that the right-hand side
+turn test is true for slightly perturbed $u$, and Graham Scan has a chain of
+$O(n)$. Our classification of a point requires points in the depth of the tree
+only, so do we get a better (average) bound of $O(\log(n) \epsilon)$?
+
+\begin{prop}
+    Algorithm~\ref{alg:quickhull_basic} is not backward stable.
+\end{prop}
+
+\begin{proof}
+    I struggle to find a counter-example, but we check 
+    $$(q_y - p_y) \cdot (u_x - u'_x) < (q_x - p_x) \cdot (u_y - u'_y)$$
+    for whether $d(u, pq) > d(u', pq)$. The idea is to have 
+    $P = \{p, q, u, u'\}$ such that $u'$ is very close to $u$, but in the 
+    triangle $\Delta puq$. If the left-hand side of the equation rounds down,
+    and the right-hand rounds up, it may erronously think 
+    $d(u', pq) > d(u, pq)$.
+
+
+\end{proof}
+
+\section{Numerical Robustness}
+
+We have 
+
+$$fl(fl(p_x - u_x) \cdot fl(q_y - p_y)) = 
+(1 + \delta)^3 (p_x - u_x) \cdot (q_y - p_y) = $$
+$$((1 + 3\delta + O(\delta^2))p_x - (1 + 3\delta + O(\delta^2))u_x) \cdot (q_y - p_y).$$
+
+The same analysis can be done for
+
+$$fl((p_y - u_y) \cdot fl(q_x - p_x)).$$
+
+So even if rejecting $u$ is wrong, it is correct for $p', u'$ perturbed
+by $1 + 3\delta$ and $\delta \leq 3 \epsilon$.
+The same holds for deciding whether $d(u_1, pq) > d(u_2, pq)$. So does this
+mean that if we have recursion depth $m$, we can say that we solve the problem
+$CH(x(1 + 3m\epsilon)) = y(1 + 3m\epsilon))$?
+
+\section{Numerical Robustness Old}
+
+
+
+\tkcomment{Failed attempt at writing something sensible}
+
 Algorithms should compute the correct result. In the context of real quantities
 and floating point numbers, true correctness is unattainable. We can only
 seek to minimize the error. 
@@ -96,3 +187,61 @@ $$orient(p, u, q) > orient(p, u', q) \iff orient(u, p, q) < orient(u', p, q)
 \iff$$
 
 $$(q_y - p_y) \cdot (u_x - u'_x) < (q_x - p_x) \cdot (u_y - u'_y).$$
+
+\subsection{Mixed Forward-Backward Error Analysis}
+
+We show that our algorithm computes a slightly different output for a slightly
+different input.
+
+Let $\epsilon$ be the unit of least precision, and $M$ the maximum magnitude
+of the $x$-coordinates and $y$-coordinates of points in $P$.
+We are going to prove that for any set $P$ there is a set $P'$ that is the
+points in $P$ moved by at most $13 \epsilon M$, such that our algorithm
+computes $CH(P')$. As each point in $P$ is close to $P'$, also each point in
+$CH(P)$ is close to the points in $CH(P')$.
+
+\begin{proof}
+    Round each point to the nearest multiple of $13 \epsilon M$. Then
+    $$orient(u, p, q) = (p_x - u_x) \cdot (q_y - p_y) - 
+    (p_y - u_y) \cdot (q_x - p_x)$$
+    is a multiple of $13^2 \epsilon^2 M^2$. So this means that 
+    $$orient(u, p, q) > 0 \iff orient(u, p, q) \geq 13^2 \epsilon^2 M^2.$$
+
+    Let $R(p, u, q)$ be the mathematical test that $puq$ makes a right turn, 
+    and $\hat{R}(p, u, q)$ the floating point test
+    $$fl(fl(p_x - u_x) \cdot fl(q_y - p_y)) > fl(fl(p_y - u_y) \cdot fl(q_x - p_x)).$$
+
+    We are going to prove that $R(p, u, q) \iff \hat{R}(p, u, q)$.
+
+    First, assume that $R(p, u, q)$ holds. Assume that no coordinates coincide.
+
+    My intuition says that rounding to multiples of $13 \epsilon M$ ensures
+    the subtraction is exact, which would mean that we only have one round-off
+    error on both sides of the inequality.
+\end{proof}
+
+
+\iffalse
+
+Let $\epsilon$ be the unit of least precision. Then we have
+
+$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} 
+< \frac{(1 + \epsilon)^3}{(1 - \epsilon)^3} \cdot \frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)}.$$
+
+$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} 
+< \frac{(1 + \epsilon)^3}{(1 - \epsilon)^3} \cdot \frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)}.$$
+
+So if
+
+$$\frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)} < 
+\frac{(1 - \epsilon)^3}{(1 + \epsilon)^3},$$
+
+then
+
+$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} < 1.$$
+
+\tkcomment{If the points are far enough from eachother, is it true that if the
+exact fraction is smaller than 1, it must also be smaller than 
+$(1 - \epsilon)^3 / (1 + \epsilon)^3$. Because in that case the floating point
+predicate makes the correct decision.
+\fi
