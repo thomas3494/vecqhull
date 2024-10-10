@@ -11,7 +11,7 @@ implementation.
 
 For Unix and derivatives like Linux, macOS, \*BSD.
 
-1. First install 
+1. First install [Highway](https://github.com/google/highway)
 
 2. Set the compiler and installation prefix in `config.mk`
 

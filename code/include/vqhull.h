@@ -7,22 +7,17 @@ extern "C" {
 
 #include <stddef.h>
 
-typedef struct {
-    double *x;
-    double *y;
-} Points;
-
 /**
- * Takes a set of P of n points.
- * Replaces P in-place with its convex hull.
+ * Takes a set of n points in the plane.
+ * Replaces the set in-place with its convex hull.
  * Returns the number of points in the convex hull.
  **/
-size_t VecQuickhull(size_t n, Points P);
+size_t VecQuickhull(size_t n, double *x_coor, double *y_coor);
 
 /**
  * Same as VecQuickhull, but parallelised with OpenMP 
  **/
-size_t VecQuickhullP(size_t n, Points P);
+size_t VecQuickhullP(size_t n, double *x_coor, double *y_coor);
 
 #ifdef __cplusplus
 }

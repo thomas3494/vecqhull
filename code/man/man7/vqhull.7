@@ -33,6 +33,25 @@ in computational geometry, check out
 .Sy qhull
 or
 .Sy CGAL
+.Sh COMPLEXITY
+Quickhull, like Quicksort, has a worst case complexity of O(n^2) where
+n is the number of points. In practice we see much better behaviour.
+If the convex hull contains h points, we typically observe a runtime of
+O(n log(h)). 
+.Sh IMPRECISION
+It is an important observation that the number of significant digits
+in the input, is not always proportional to the number of significant
+digits in the output. For example, if you take two measurements x = 1.124 cm,
+y = 1.113 cm to 4 significant digits each, you know the difference
+x - y = 0.011 cm only to 2 significant digits.
+.Nm
+returns a set that is only an approximate solution for approximately our problem.
+Here approximate means the following.
+If we have n points, and u is the machine precision (2^(-24) for
+float, 2^(-53) for double), a point is approximately equal if the x-coordinates 
+and y-coordinates have been multiplied by a factor smaller than 1 + 3nu.
+This is a worst-case bound. Similar to the complexity, if we have h points
+on the convex hull, the factor is typically 1 + 3u log(h).
 .Sh AUTHORS
 .An Thomas Koopman Aq Mt thomas.koopman@ru.nl
 .An Jordy Aaldering Aq Mt jordy.aaldering@ru.nl

@@ -40,6 +40,11 @@ typedef struct {
     double y;
 } Point;
 
+typedef struct {
+    double *x;
+    double *y;
+} Points;
+
 /*****************************************************************************
  * Utility functions
  *****************************************************************************/
@@ -1248,8 +1253,9 @@ static size_t FindHull(size_t n, Points P, Point p, Point r, Point q);
 static size_t FindHullP(size_t n, Points P, Point p, Point r, Point q,
                         unsigned int nthreads);
 
-size_t VecQuickhull(size_t n, Points P)
+size_t VecQuickhull(size_t n, double *x_coor, double *y_coor)
 {
+    Points P = {x_coor, y_coor};
 #ifdef MEASURE_BW
     /* Most of the time, we read only x-coordinates */
     read_bw += n * sizeof(Point) / 2;
@@ -1315,8 +1321,9 @@ static double wtime(void)
 }
 #endif
 
-size_t VecQuickhullP(size_t n, Points P)
+size_t VecQuickhullP(size_t n, double *x_coor, double *y_coor)
 {
+    Points P = {x_coor, y_coor};
 #ifdef PROFILE
     double time1 = wtime();
 #endif

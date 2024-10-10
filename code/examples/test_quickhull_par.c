@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     #endif
 
     double start = wtime();
-    size_t count = VecQuickhullP(n, P);
+    size_t count = VecQuickhullP(n, P.x, P.y);
     double stop = wtime();
 
     #ifdef RAPL_ENERGY

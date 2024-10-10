@@ -1,11 +1,10 @@
 # Customize below to fit your system
 
-# paths (unset $PCPREFIX to not install a pkg-config-file)
+# Paths
 PREFIX    ?= $(HOME)/.local
 INCPREFIX  = $(PREFIX)/include
 LIBPREFIX  = $(PREFIX)/lib
 MANPREFIX  = $(PREFIX)/share/man
-PCPREFIX   = $(LIBPREFIX)/pkgconfig
 
 # names
 ANAME     = libvqhull.a

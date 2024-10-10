@@ -6,6 +6,11 @@ typedef struct {
     double y;
 } Point;
 
+typedef struct {
+    double *x;
+    double *y;
+} Points;
+
 /* pbbs 2d sequence format */
 void PrintPoints(size_t n, Points P);
 
