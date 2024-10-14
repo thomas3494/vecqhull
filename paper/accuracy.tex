@@ -1,151 +1,18 @@
 \section{Numerical Robustness}
 
-\tkcomment{Survey and comments on related work}
+In a similar vein to \cite{Jiang06}, we define error between two sets
+$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
+value over their $x$-coordinates and $y$-coordinates. We do not require
+the number of points to be the same as we have decided to not care about
+minimum representations of the convex hull.
 
-Let $d$ be the Hausdorff distance between two sets 
-(\url{https://en.wikipedia.org/wiki/Hausdorff_distance}).
+Writing $\epsilon$ for the machine precision, $2^{-53}$ for double precision
+and $2^{-24}$ for single precision, we can implement Quickhull in such a way
+that both the forward and backward error are $O(m \epsilon)$ where $m$ is
+the recursion depth of Algorithm~\ref{alg:quickhull_basic} (worst case $n$,
+average case $\log(n)$).
 
-\url{https://web.archive.org/web/20170809013621/http://www.iro.umontreal.ca/~stewart/JiangStewart11page.pdf} suggests the following way of defining the error of 
-computed hull $\widehat{CH(P)}$. If $\widehat{CH(P)}$ is not a subset of $CH(P)$,
-the error is infinite, otherwise it is
-
-$$d(\widehat{CH(P)}, P) / M$$
-
-where $M$ is the maximum absolute value of any $x$-coordinate or $y$-coordinate.
-
-The condition $\widehat{CH(P)} \subseteq CH(P)$ may make sense from a 
-backward-error analysis approach as a non-convex set is no solution for any
-input, let alone a slightly perturbed one. But I think this is unreasonably
-strong, and that if we drop this requirement we have a reasonable analogue
-for a stable algorithm (mixed forward/backward analysis).
-
-The paper also says
-
-\begin{displayquote}
-    On the other hand, a slight modification of the Graham-Fortune algorithm of
-    \cite{Fortune89} is numerically stable, that is, the computed answer is 
-    such that it is the exact solution for a perturbed problem for which the
-    relative perturbation bound in problem space is at most $O(n\epsilon)$,
-    where $\epsilon$ is the relative error of floating-point arithmetic.
-\end{displayquote}
-
-I can't really make sense of the referenced papers, especially as they also
-reference to a 600 page book that does not seem to say anything about convex
-hulls...
-
-I also have the following problems / confusions with this statement.
-
-\begin{itemize}
-    \item What is described is backward stable, not numerically stable, at
-          least as defined by Higham as mixed backward/forward stable.
-    \item If we perturb the input by $\delta$, the convex hull is perturbed
-          by relative error $\sqrt{2}$, so why is a linear error-bound
-          considered stable? 
-          For $n = 10^8$ that means \texttt{double} input gives us essentially 
-          \texttt{float} output,
-          but experimentally the algorithm appears to do better than this.
-\end{itemize}
-
-The idea behind the $O(n \epsilon)$ error bound is that the right-hand side
-turn test is true for slightly perturbed $u$, and Graham Scan has a chain of
-$O(n)$. Our classification of a point requires points in the depth of the tree
-only, so do we get a better (average) bound of $O(\log(n) \epsilon)$?
-
-\begin{prop}
-    Algorithm~\ref{alg:quickhull_basic} is not backward stable.
-\end{prop}
-
-\begin{proof}
-    I struggle to find a counter-example, but we check 
-    $$(q_y - p_y) \cdot (u_x - u'_x) < (q_x - p_x) \cdot (u_y - u'_y)$$
-    for whether $d(u, pq) > d(u', pq)$. The idea is to have 
-    $P = \{p, q, u, u'\}$ such that $u'$ is very close to $u$, but in the 
-    triangle $\Delta puq$. If the left-hand side of the equation rounds down,
-    and the right-hand rounds up, it may erronously think 
-    $d(u', pq) > d(u, pq)$.
-
-
-\end{proof}
-
-\section{Numerical Robustness}
-
-We have 
-
-$$fl(fl(p_x - u_x) \cdot fl(q_y - p_y)) = 
-(1 + \delta)^3 (p_x - u_x) \cdot (q_y - p_y) = $$
-$$((1 + 3\delta + O(\delta^2))p_x - (1 + 3\delta + O(\delta^2))u_x) \cdot (q_y - p_y).$$
-
-The same analysis can be done for
-
-$$fl((p_y - u_y) \cdot fl(q_x - p_x)).$$
-
-So even if rejecting $u$ is wrong, it is correct for $p', u'$ perturbed
-by $1 + 3\delta$ and $\delta \leq 3 \epsilon$.
-The same holds for deciding whether $d(u_1, pq) > d(u_2, pq)$. So does this
-mean that if we have recursion depth $m$, we can say that we solve the problem
-$CH(x(1 + 3m\epsilon)) = y(1 + 3m\epsilon))$?
-
-\section{Numerical Robustness Old}
-
-
-
-\tkcomment{Failed attempt at writing something sensible}
-
-Algorithms should compute the correct result. In the context of real quantities
-and floating point numbers, true correctness is unattainable. We can only
-seek to minimize the error. 
-
-It is outside the scope of this paper to use rigourous frameworks such as those 
-explained in \cite{Higham02, Jiang06}.
-Nonetheless, we did not want to completely ignore numerical robustness, so we 
-have made some implementation decisions based on heuristics.
-made some design decisions based on heuristics.
-
-\subsection{Error Analysis}
-
-Floating numbers can store numbers of the form $\pm m \cdot 2^e$,
-where we call $m$ the mantissa and $e$ the exponent. For double precision,
-we have ranges $0 \leq m \leq 2^{53}$, $-1022 \leq e \leq 1023$.
-When doing computations with floating point numbers, we have to deal with
-errors. These can arise from rounding, but also imprecise measurements or
-previous computations. We denote $\hat{x}$ for a computed value $x$, which
-may not be equal. One way to measure this error would be to compute
-$|\hat{x} - x|$. This is called the \textit{absolute error}. If $x$ is a
-measurement of weight, we will get a factor $1000$ difference in error
-depending on whether we use in grams or kilograms as units. For this reason,
-we frequently look at the \textit{relative error} $\frac{|\hat{x} - x|}{|x|}$.
-Equivalently, the relative error is $|\delta|$ where $\hat{x} = (1 + \delta)x$.
-
-We use the following ubiquitous model for floating point operations. Let
-$\oplus \in \{+, -, *, /\}$ be a primitive operation, and denote 
-$fl(x \oplus y)$ for the result computed with floating point numbers. Then
-$fl(x \oplus y) = (x \oplus y)(1 + \delta)$ for some $\delta$ smaller than
-a number called the \textit{machine precision}. This is typically $2^{-53}$
-for \texttt{double} and $2^{-24}$ for \texttt{float}. Though these operations
-have the same small error, they magnify existing errors to a very different
-extent.
-
-Consider two perturbed values $\hat{a} = a(1 + \delta_a)$,
-$\hat{b} = b(1 + \delta_b)$. Then for subtraction an attainable
-upper bound on the relative error is
-
-$$\frac{|a(1 + \delta_a) - b(1 + \delta_b) - (a - b)|}{|a - b|} = 
-\frac{|\delta_a a - \delta_b b|}{|a - b|} \leq 
-\frac{|\delta_a||a| + |\delta_b| |b|}{|a - b|} \leq 
-\max(|\delta_a|, |\delta_b|) \frac{|a| + |b|}{|a - b|}.$$
-
-So a small error in the input can lead to a large error in the result whenever 
-$|a - b| \ll |a| + |b|$.
-
-For multiplication we are in a much better position as we have an upper bound
-
-$$\frac{|a(1 + \delta_a)b(1 + \delta_b) - ab|}{|ab|} =
-\frac{|ab(\delta_a + \delta_b + \delta_a + \delta_b|}{|ab|} \leq
-2\max(|\delta_a|, |\delta_b|) + \max(|\delta_a|, |\delta_b|)^2.$$
-
-So the error is practically bounded by twice the machine precision.
-
-\subsection{Accurate Evaluation of Geometric Tests}
+\subsection{Accurate Evaluation of Right-Hand Turn}
 
 As discussed, we can decide whether $puq$ makes a right-hand turn by testing
 $orient(p, u, q) > 0$. We have $orient(p, u, q) = -orient(u, p, q)$, so
@@ -157,9 +24,55 @@ $$(p_x - u_x) \cdot (q_y - p_y) < (p_y - u_y) \cdot (q_x - p_x).$$
 
 The number of operations are the same, but we evaluate this in a loop over $u$, 
 so this formulaton has the performance benefit that $q_x - p_x$ and $q_y - p_y$ 
-can be lifted out of the loop.
+can be lifted out of the loop. We denote the true evaluation of this inequality
+by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
-We can test whether $u$ is further from $pq$ than $u'$ by comparing
+
+\begin{lemma}\label{lem:right-turn}
+    If $\widehat{rt}(p, u, q)$ is true while $rt(p, u, q)$ is false, there exists
+    $\hat{u} = u(1 + \delta)$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$ 
+    such that $rt(p, \hat{u}, q)$ is true.
+\end{lemma}
+
+\begin{proof}
+    We write $fl(\cdots)$ for the floating point evaluation of a primitive 
+    operation. The IEEE-754 standard satisfies 
+    $fl(x \circ y) = (1 + \delta)(x \circ y)$, $|\delta| < \epsilon$ for
+    $\circ \in \{+, -, \cdot\}$. This gives us
+
+    $$fl(fl(p_x - u_x) fl(q_y - p_y)) < 
+            fl(fl(p_y - u_y) fl(q_x - p_x)) \iff$$
+    $$(p_x - u_x) (q_y - p_y) < \frac{(1 + \delta_1)(1 + \delta_2)(1 + \delta_3)}
+    {(1 + \delta_4)(1 + \delta_5)(1 + \delta_6)} (p_y - u_y) (q_x - p_x).$$
+
+    By a non-trivial (\tkcomment{but well-known?}) result, there is some $\theta$
+    such that
+
+    $$\frac{(1 + \delta_1)(1 + \delta_2)(1 + \delta_3)}{(1 + \delta_4)(1 + \delta_5)(1 + \delta_6)} = 1 + \theta$$
+
+    for some $|\theta| \leq \frac{6\epsilon}{1 - 6\epsilon} := \gamma_6$.
+
+    That simplifies the equation to
+
+    $$(p_x - u_x) (q_y - p_y) < (1 + \theta) (p_y - u_y) (q_x - p_x) \iff$$
+    $$-\theta (p_y - u_y) (q_x - p_x) < orient(p, u, q).$$
+
+    The predicate $rt(p, u, q)$ is equivalent to $orient(p, u, q) \leq 0$
+    So $|orient(p, u, q)| \leq \gamma_6 |(p_y - u_y) (q_x - p_x)|$.
+
+    Recall that 
+
+    $$d(u, pq) = \frac{orient(p, u, q)}{2 \lVert p - q \rVert} \leq$$
+    $$\frac{\gamma_6 |(p_y - u_y) (q_x - p_x)|}{2 \sqrt{(q_x - p_x)^2 + (q_y - p_y)^2}} \leq$$
+    $$\frac{1}{2}\gamma_6 |p_y - u_y| \leq \gamma_6 M.$$
+
+    So we can move $u$ by $\gamma_6 M$ to get $\hat{u}$ that is truly to the 
+    left of $pq$.
+\end{proof}
+
+\subsection{Accurate Evaluation of Distance Test}
+
+We can test whether $u$ is farther from $pq$ than $u'$ by comparing
 $orient(u, p, q)$ to $orient(u', p, q)$. So from a performance standpoint it
 is tempting to compute the orientation once for each point, and then do both
 the right-turn test and the distance test with this quantity, but this
@@ -167,81 +80,22 @@ runs into precision problems. We are not very much concerned with the
 subtraction of coordinates because they are input values and hence not
 subject to errors (at least errors we control). However, the subtraction 
 in the middle does have round-off errors we introduce by the multiplications.
-This subtraction is ill-conditioned whenever
-
-$$(p_x - u_x) \cdot (q_y - p_y) - (p_y - u_y) \cdot (q_x - p_x) \ll
-|(p_x - u_x) \cdot (q_y - p_y)| + |(p_y - u_y) \cdot (q_x - p_x)|.$$
-
-This can happen when for example $p = (-1, 1)$ and $u$, $q$ close to
-the origin.
-
-Note that this is not a problem for deciding whether $puq$ is a
-right-hand turn or not because this concerns the sign of the orientation,
-not its value. Both sides of the inequality
-$(p_x - u_x) \cdot (q_y - p_y) < (p_y - u_y) \cdot (q_x - p_x)$ are
-computed within twice the machine precision.
 
 So instead of working with orientations directly, we use that
 
 $$orient(p, u, q) > orient(p, u', q) \iff orient(u, p, q) < orient(u', p, q) 
 \iff$$
 
-$$(q_y - p_y) \cdot (u_x - u'_x) < (q_x - p_x) \cdot (u_y - u'_y).$$
+$$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y).$$
 
-\subsection{Mixed Forward-Backward Error Analysis}
-
-We show that our algorithm computes a slightly different output for a slightly
-different input.
-
-Let $\epsilon$ be the unit of least precision, and $M$ the maximum magnitude
-of the $x$-coordinates and $y$-coordinates of points in $P$.
-We are going to prove that for any set $P$ there is a set $P'$ that is the
-points in $P$ moved by at most $13 \epsilon M$, such that our algorithm
-computes $CH(P')$. As each point in $P$ is close to $P'$, also each point in
-$CH(P)$ is close to the points in $CH(P')$.
+\begin{lemma}
+    What do we even want here? For a pair $u, u'$ it is obvious that whenever
+    our evaluation says $d(u, pq) > d(u', pq)$ there exists 
+    $\hat{p} = (1 + \theta)p$, $\hat{q} = (1 + \theta)q$, $|\theta| < \gamma_6$
+    such that $d(u, \hat{p}\hat{q}) > d(u', \hat{p}\hat{q})$, but maybe we want
+    the perturbation in $u$? Also need $d(u, pq)$ larger than ALL other $d(u', pq)$,
+    and it is not obvious that these $\theta$ are the same for different $u'$.
+\end{lemma}
 
 \begin{proof}
-    Round each point to the nearest multiple of $13 \epsilon M$. Then
-    $$orient(u, p, q) = (p_x - u_x) \cdot (q_y - p_y) - 
-    (p_y - u_y) \cdot (q_x - p_x)$$
-    is a multiple of $13^2 \epsilon^2 M^2$. So this means that 
-    $$orient(u, p, q) > 0 \iff orient(u, p, q) \geq 13^2 \epsilon^2 M^2.$$
-
-    Let $R(p, u, q)$ be the mathematical test that $puq$ makes a right turn, 
-    and $\hat{R}(p, u, q)$ the floating point test
-    $$fl(fl(p_x - u_x) \cdot fl(q_y - p_y)) > fl(fl(p_y - u_y) \cdot fl(q_x - p_x)).$$
-
-    We are going to prove that $R(p, u, q) \iff \hat{R}(p, u, q)$.
-
-    First, assume that $R(p, u, q)$ holds. Assume that no coordinates coincide.
-
-    My intuition says that rounding to multiples of $13 \epsilon M$ ensures
-    the subtraction is exact, which would mean that we only have one round-off
-    error on both sides of the inequality.
 \end{proof}
-
-
-\iffalse
-
-Let $\epsilon$ be the unit of least precision. Then we have
-
-$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} 
-< \frac{(1 + \epsilon)^3}{(1 - \epsilon)^3} \cdot \frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)}.$$
-
-$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} 
-< \frac{(1 + \epsilon)^3}{(1 - \epsilon)^3} \cdot \frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)}.$$
-
-So if
-
-$$\frac{(q_y - p_y) \cdot (u_x - u'_x)}{(q_x - p_x) \cdot (u_y - u'_y)} < 
-\frac{(1 - \epsilon)^3}{(1 + \epsilon)^3},$$
-
-then
-
-$$\frac{fl(fl(q_y - p_y) \cdot fl(u_x - u'_x))}{fl(fl(q_x - p_x) \cdot fl(u_y - u'_y))} < 1.$$
-
-\tkcomment{If the points are far enough from eachother, is it true that if the
-exact fraction is smaller than 1, it must also be smaller than 
-$(1 - \epsilon)^3 / (1 + \epsilon)^3$. Because in that case the floating point
-predicate makes the correct decision.
-\fi
