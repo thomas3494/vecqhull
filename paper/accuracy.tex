@@ -1,16 +1,6 @@
 \section{Numerical Robustness}
 
-In a similar vein to \cite{Jiang06}, we define error between two sets
-$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
-value over their $x$-coordinates and $y$-coordinates. We do not require
-the number of points to be the same as we have decided to not care about
-minimum representations of the convex hull.
-
-Writing $\epsilon$ for the machine precision, $2^{-53}$ for double precision
-and $2^{-24}$ for single precision, we can implement Quickhull in such a way
-that both the forward and backward error are $O(m \epsilon)$ where $m$ is
-the recursion depth of Algorithm~\ref{alg:quickhull_basic} (worst case $n$,
-average case $\log(n)$).
+...
 
 \subsection{Accurate Evaluation of Right-Hand Turn}
 
@@ -29,8 +19,11 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
 
 \begin{lemma}\label{lem:right-turn}
-    If $\widehat{rt}(p, u, q)$ is true while $rt(p, u, q)$ is false, there exists
-    $\hat{u} = u(1 + \delta)$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$ 
+    The computed predicate $\widehat{rt}$ is backward-stable in the 
+    following sense. Let $M$ be
+    an upper bound on the magnitude of $x$- and $y$-coordinates of points in
+    $P$. Then if $\widehat{rt}(p, u, q)$ is true, there exists 
+    $\hat{u} = u(1 + \delta)$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
     such that $rt(p, \hat{u}, q)$ is true.
 \end{lemma}
 
@@ -50,21 +43,23 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
     $$\frac{(1 + \delta_1)(1 + \delta_2)(1 + \delta_3)}{(1 + \delta_4)(1 + \delta_5)(1 + \delta_6)} = 1 + \theta$$
 
-    for some $|\theta| \leq \frac{6\epsilon}{1 - 6\epsilon} := \gamma_6$.
+    and $|\theta| \leq \frac{6\epsilon}{1 - 6\epsilon} := \gamma_6$.
 
     That simplifies the equation to
 
     $$(p_x - u_x) (q_y - p_y) < (1 + \theta) (p_y - u_y) (q_x - p_x) \iff$$
     $$-\theta (p_y - u_y) (q_x - p_x) < orient(p, u, q).$$
 
-    The predicate $rt(p, u, q)$ is equivalent to $orient(p, u, q) \leq 0$
-    So $|orient(p, u, q)| \leq \gamma_6 |(p_y - u_y) (q_x - p_x)|$.
+    If $rt(p, u, q)$ is true, we can take $\hat{u} = u$. If it is false,
+    we have $orient(p, u, q) \leq 0$, so
+    $|orient(p, u, q)| \leq \gamma_6 |(p_y - u_y) (q_x - p_x)|$.
 
     Recall that 
 
     $$d(u, pq) = \frac{orient(p, u, q)}{2 \lVert p - q \rVert} \leq$$
     $$\frac{\gamma_6 |(p_y - u_y) (q_x - p_x)|}{2 \sqrt{(q_x - p_x)^2 + (q_y - p_y)^2}} \leq$$
-    $$\frac{1}{2}\gamma_6 |p_y - u_y| \leq \gamma_6 M.$$
+    $$\frac{1}{2}\gamma_6 |p_y - u_y| \leq 
+            \frac{1}{2} \gamma_6 (|p_y| + |u_y|)\gamma_6 M = \gamma_6 M.$$
 
     So we can move $u$ by $\gamma_6 M$ to get $\hat{u}$ that is truly to the 
     left of $pq$.
@@ -88,14 +83,52 @@ $$orient(p, u, q) > orient(p, u', q) \iff orient(u, p, q) < orient(u', p, q)
 
 $$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y).$$
 
-\begin{lemma}
-    What do we even want here? For a pair $u, u'$ it is obvious that whenever
-    our evaluation says $d(u, pq) > d(u', pq)$ there exists 
-    $\hat{p} = (1 + \theta)p$, $\hat{q} = (1 + \theta)q$, $|\theta| < \gamma_6$
-    such that $d(u, \hat{p}\hat{q}) > d(u', \hat{p}\hat{q})$, but maybe we want
-    the perturbation in $u$? Also need $d(u, pq)$ larger than ALL other $d(u', pq)$,
-    and it is not obvious that these $\theta$ are the same for different $u'$.
+We write $frt(p, q, u, u')$ for the predicate $d(pq, u) > d(pq, u')$,
+and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
+
+\tkcomment{We can see this as a slope comparison by dividing by differences
+in $x$-coordinates, but producing a small change in slope may require a big
+change in the points, so I do not think that works. Can we also see this
+as the area of a parallellogram?}
+
+\tkcomment{It is unclear what we really need here, as the furthest point
+has a for-all quantifier, but the perturbation only an exists quantifier.}
+
+\begin{lemma}\label{lem:farther}
+    The computed predicate $\widehat{frt}$ is backward-stable in the 
+    following sense. Let $M$ be an upper bound on the magnitude of 
+    $x$- and $y$-coordinates of points in $P$. 
+    Then if $\widehat{frt}(p, q, u, u')$ is true, there exists 
+    $\hat{u} = (1 + \delta)u$ and $\hat{u'} = (1 + \delta)u'$,
+    $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
+    such that $frt(p, q, \hat{u}, \hat{u}')$ is true.
+    Alternatively, we can also take $\hat{p} = (1 + \delta)p$ and 
+    $\hat{q} = (1 + \delta)q$.
+    \tkcomment{I am unsure whether it is possible to perturb only one point.}
 \end{lemma}
 
 \begin{proof}
+    Analogously to Lemma~\ref{lem:right-turn}, we have
+
+    $$(q_y - p_y) (u_x - u'_x) < (1 + \theta)(q_x - p_x) (u_y - u'_y),$$
+
+    for $|theta| < \gamma_6$. We can then pull $(1 + \theta)$ into
+    either the $u, u'$ factor or the $p, q$ factor.
 \end{proof}
+
+\subsection{Numerical Stability of Quickhull}
+
+In a similar vein to \cite{Jiang06}, we define error between two sets
+$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
+value over their $x$-coordinates and $y$-coordinates $M$. We do not require
+the number of points to be the same as we have decided to not care about
+minimum representations of the convex hull.
+
+\begin{theorem}
+    \tkcomment{I don't know whether this is true, just my intuition.}
+    Writing $\epsilon$ for the machine precision, $2^{-53}$ for double precision
+    and $2^{-24}$ for single precision, we can implement Quickhull in such a way
+    that both the forward and backward error are $O(m \epsilon)$ where $m$ is
+    the recursion depth of Algorithm~\ref{alg:quickhull_basic} (worst case $n$,
+    average case $\log(n)$).
+\end{theorem}
