@@ -1,6 +1,15 @@
 \section{Numerical Robustness}
 
-...
+\tkcomment{I use a lot of big words in this section, but I don't know 
+what I am doing, so probably at least half is wrong.}
+
+\tkcomment{For the actual paper, maybe put the reasoning behind the
+implementation choices here, and move the proofs to an appendix.}
+
+I write $(1 + \delta)$, $|\delta| < ...$, but really mean $I + A$ for some 
+$2 \times 2$ matrix such that $\lVert A \rVert < ...$, where the norm
+on $A$ is subordinate to the Euclidean norm on $\mathbb{R}^2$ (spectral radius).
+
 
 \subsection{Accurate Evaluation of Right-Hand Turn}
 
@@ -86,34 +95,46 @@ $$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y).$$
 We write $frt(p, q, u, u')$ for the predicate $d(pq, u) > d(pq, u')$,
 and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
 
-\tkcomment{We can see this as a slope comparison by dividing by differences
-in $x$-coordinates, but producing a small change in slope may require a big
-change in the points, so I do not think that works. Can we also see this
-as the area of a parallellogram?}
-
-\tkcomment{It is unclear what we really need here, as the furthest point
-has a for-all quantifier, but the perturbation only an exists quantifier.}
-
 \begin{lemma}\label{lem:farther}
     The computed predicate $\widehat{frt}$ is backward-stable in the 
     following sense. Let $M$ be an upper bound on the magnitude of 
     $x$- and $y$-coordinates of points in $P$. 
     Then if $\widehat{frt}(p, q, u, u')$ is true, there exists 
-    $\hat{u} = (1 + \delta)u$ and $\hat{u'} = (1 + \delta)u'$,
-    $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
+    $\hat{u}' = (1 + \delta)u'$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
     such that $frt(p, q, \hat{u}, \hat{u}')$ is true.
-    Alternatively, we can also take $\hat{p} = (1 + \delta)p$ and 
-    $\hat{q} = (1 + \delta)q$.
-    \tkcomment{I am unsure whether it is possible to perturb only one point.}
 \end{lemma}
 
 \begin{proof}
-    Analogously to Lemma~\ref{lem:right-turn}, we have
+    Suppose $\widehat{frt}(p, q, u, u')$ is true. Then analogously to 
+    Lemma~\ref{lem:right-turn}, we have
 
-    $$(q_y - p_y) (u_x - u'_x) < (1 + \theta)(q_x - p_x) (u_y - u'_y),$$
+    $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) < 
+            \theta(q_x - p_x) (u_y - u'_y),$$
 
-    for $|theta| < \gamma_6$. We can then pull $(1 + \theta)$ into
-    either the $u, u'$ factor or the $p, q$ factor.
+    for $|theta| < \gamma_6$. If $frt(p, q, u, u')$ is false, then
+
+    $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) \geq 0,$$
+
+    so 
+
+    $$|(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y)| \leq 
+        |\theta(q_x - p_x) (u_y - u'_y)|. $$
+
+    We also have 
+
+    $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) =
+       orient(u, p, q) - orient(u', p, q) = $$
+    $$2 d(u, pq) \lVert p - q \rVert - 2 d(u', pq) \lVert p - q \rVert = 
+        2 \lVert p - q \rVert (d(u, pq) - d(u', pq)). $$
+
+    Taking this together yields
+
+    $$d(u, pq) - d(u', pq) \leq 
+       |\theta|\frac{|(q_x - p_x) (u_y - u'_y)|}{2 \lVert p - q \rVert} \leq$$
+    $$\frac{1}{2}|\theta| |u_y - u'_y| \leq |\theta|M.$$
+
+    So we obtain $\hat{u}'$ by moving $u'$ perpendicular to $pq$ by at least
+    $|\theta|M$.
 \end{proof}
 
 \subsection{Numerical Stability of Quickhull}
@@ -125,10 +146,13 @@ the number of points to be the same as we have decided to not care about
 minimum representations of the convex hull.
 
 \begin{theorem}
-    \tkcomment{I don't know whether this is true, just my intuition.}
-    Writing $\epsilon$ for the machine precision, $2^{-53}$ for double precision
-    and $2^{-24}$ for single precision, we can implement Quickhull in such a way
-    that both the forward and backward error are $O(m \epsilon)$ where $m$ is
-    the recursion depth of Algorithm~\ref{alg:quickhull_basic} (worst case $n$,
-    average case $\log(n)$).
+    Writing $\epsilon$ for the machine precision, we have implemented
+    Quickhull in such a way that for recursion depth $1$, Quickhull has
+    forward and backward error 
+
+    $$\frac{6\epsilon}{1 - 6\epsilon}M.$$
 \end{theorem}
+
+\begin{proof}
+
+\end{proof}
