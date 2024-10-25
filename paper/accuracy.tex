@@ -3,13 +3,21 @@
 \tkcomment{I use a lot of big words in this section, but I don't know 
 what I am doing, so probably at least half is wrong.}
 
-\tkcomment{For the actual paper, maybe put the reasoning behind the
-implementation choices here, and move the proofs to an appendix.}
+\tkcomment{Insert paragraph introducing general idea and motivation behind
+stability (robustness?)}
 
-I write $(1 + \delta)$, $|\delta| < ...$, but really mean $I + A$ for some 
-$2 \times 2$ matrix such that $\lVert A \rVert < ...$, where the norm
-on $A$ is subordinate to the Euclidean norm on $\mathbb{R}^2$ (spectral radius).
+\subsection{Robustness Framework}
 
+In a similar vein to \cite{Jiang06}, we define error between two sets
+$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
+value over their $x$-coordinates and $y$-coordinates $M$. We do not require
+the number of points to be the same as we have not defined the convex hull
+as a minimum representation. \tkcomment{If you do not want this, you probably
+want an $\epsilon$-strong convex hull, which can be obtained efficiently
+from the approximate convex hull we compute.}
+
+We write $\epsilon$ for the machine precision, $2^{-53}$ for double-precision, 
+and $2^{-24}$ for single-precision.
 
 \subsection{Accurate Evaluation of Right-Hand Turn}
 
@@ -26,19 +34,19 @@ so this formulaton has the performance benefit that $q_x - p_x$ and $q_y - p_y$
 can be lifted out of the loop. We denote the true evaluation of this inequality
 by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
-
 \begin{lemma}\label{lem:right-turn}
     The computed predicate $\widehat{rt}$ is backward-stable in the 
-    following sense. Let $M$ be
-    an upper bound on the magnitude of $x$- and $y$-coordinates of points in
-    $P$. Then if $\widehat{rt}(p, u, q)$ is true, there exists 
-    $\hat{u} = u(1 + \delta)$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
-    such that $rt(p, \hat{u}, q)$ is true.
+    following sense. If $\widehat{rt}(p, u, q)$ is true, there exists 
+    $\hat{u}$ such that 
+    $$\lVert u - \hat{u} \rVert < \frac{6\epsilon}{1 - 6\epsilon}M$$
+    and $rt(p, \hat{u}, q)$ is true. Furthermore, this $\hat{u}$ can be
+    obtained by moving $u$ perpendicular to $pq$ by a distance 
+    $\frac{6\epsilon}{1 - 6\epsilon}M$ or more.
 \end{lemma}
 
 \begin{proof}
     We write $fl(\cdots)$ for the floating point evaluation of a primitive 
-    operation. The IEEE-754 standard satisfies 
+    operation. The IEEE-754 standard satisfies
     $fl(x \circ y) = (1 + \delta)(x \circ y)$, $|\delta| < \epsilon$ for
     $\circ \in \{+, -, \cdot\}$. This gives us
 
@@ -70,8 +78,8 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
     $$\frac{1}{2}\gamma_6 |p_y - u_y| \leq 
             \frac{1}{2} \gamma_6 (|p_y| + |u_y|)\gamma_6 M = \gamma_6 M.$$
 
-    So we can move $u$ by $\gamma_6 M$ to get $\hat{u}$ that is truly to the 
-    left of $pq$.
+    So we can move $u$ by $\gamma_6 M$ or more to get 
+    $\hat{u}$ that is truly to the left of $pq$.
 \end{proof}
 
 \subsection{Accurate Evaluation of Distance Test}
@@ -100,8 +108,13 @@ and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
     following sense. Let $M$ be an upper bound on the magnitude of 
     $x$- and $y$-coordinates of points in $P$. 
     Then if $\widehat{frt}(p, q, u, u')$ is true, there exists 
-    $\hat{u}' = (1 + \delta)u'$, $|\delta| < \frac{6\epsilon}{1 - 6\epsilon}M$
-    such that $frt(p, q, \hat{u}, \hat{u}')$ is true.
+    $\hat{u}'$ such that
+
+    $$\lVert u' - \hat{u}' \rVert < \frac{6\epsilon}{1 - 6\epsilon}M$$
+
+    and $frt(p, q, \hat{u}, \hat{u}')$ is true. Furthermore, this 
+    $\hat{u}'$ can be obtained by moving $u$ perpendicular to $pq$
+    by a distance $\frac{6\epsilon}{1 - 6\epsilon}M$ or more.
 \end{lemma}
 
 \begin{proof}
@@ -139,20 +152,15 @@ and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
 
 \subsection{Numerical Stability of Quickhull}
 
-In a similar vein to \cite{Jiang06}, we define error between two sets
-$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
-value over their $x$-coordinates and $y$-coordinates $M$. We do not require
-the number of points to be the same as we have decided to not care about
-minimum representations of the convex hull.
-
-\begin{theorem}
-    Writing $\epsilon$ for the machine precision, we have implemented
-    Quickhull in such a way that for recursion depth $1$, Quickhull has
-    forward and backward error 
-
-    $$\frac{6\epsilon}{1 - 6\epsilon}M.$$
-\end{theorem}
-
-\begin{proof}
-
-\end{proof}
+%\begin{theorem}
+%    We have implemented Quickhull in a way that is stable for three-point
+%    convex hulls, with an error bound of $\frac{6\epsilon}{1 - 6\epsilon}$
+%    on both the forward and backward error.
+%\end{theorem}
+%
+%\begin{proof}
+%    \tkcomment{
+%    For a set of points $P$, we find left-most point $p$ right-most point $q$,
+%    and another point $u$ on the convex hull. Assume without loss of generality
+%    that $rt(q, u', p)$ is false for all $u' \in P$.
+%\end{proof}
