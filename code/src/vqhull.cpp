@@ -24,7 +24,9 @@
 #include <math.h>
 #include <float.h>
 #include <hwy/highway.h>
+
 #include "vqhull.h"
+#include "blockcyclic.h"
 
 using namespace hwy::HWY_NAMESPACE;
 
@@ -82,48 +84,10 @@ swap(Points P, size_t i, size_t j)
  * Geometric tests
  ****************************************************************************/
 
-/**
- * We test orient(p, u, q) > 0, where 
- *    orient(p, u, q) = (p.x - u.x) * (q.y - u.y) - (p.y - u.y) * (q.x - u.x)
- *  or equivalently
- *    orient(p, u, q) = (u.y - p.y) * (q.x - p.x) - (u.x - p.x) * (q.y - p.y)
- * We can evaluate this more accurately by using that
- *   x * y = RN(x * y) + RN(RN(x * y) - x * y)
- * where RN stands for round nearest. In other words, we can compute
- *   xy_l = x * y;
- *   xy_s = fma(-x, y, xy_l);
- * and xy_l - xy_s is exactly equal to the true product of x and y.
- *
- * Let 
- *    a = (p.x - u.x)
- *    b = (q.y - u.y)
- *    c = (p.y - u.y)
- *    d = (q.x - u.x)
- * Then the test is equivalent to 
- *    ab - cd > 0  <=>
- *    ab_l - ab_s - cd_l + cd_s > 0 <=>
- *    ab_l - cd_l > ab_s - cd_s
- * Naively, we would have tested ab_l - cd_l > 0, so this gains us some
- * precision.
- **/
 static inline bool
 right_turn(Point p, Point u, Point q)
 {
-#if 1
-    /* Second variant allows us to pull q.y - p.y and q.x - p.x out
-     * of the loop. TODO: verify the compiler does this */
     return (u.x - p.x) * (q.y - p.y) < (u.y - p.y) * (q.x - p.x);
-#else
-    double a = p.x - u.x;
-    double b = q.y - u.y;
-    double c = p.y - u.y;
-    double d = q.x - u.x;
-    double ab_l = a * b;
-    double ab_s = fma(-a, b, ab_l);
-    double cd_l = c * d;
-    double cd_s = fma(-c, d, cd_l);
-    return (ab_l - cd_l > ab_s - cd_s);
-#endif
 }
 
 static inline Mask<ScalableTag<double>> 
@@ -134,19 +98,7 @@ right_turn(Vec<ScalableTag<double>> px,
            Vec<ScalableTag<double>> qx,
            Vec<ScalableTag<double>> qy)
 {
-#if 1
     return (ux - px) * (qy - py) < (uy - py) * (qx - px);
-#else
-    auto a = px - ux;
-    auto b = qy - uy;
-    auto c = py - uy;
-    auto d = qx - ux;
-    auto ab_l = a * b;
-    auto ab_s = MulAdd(Neg(a), b, ab_l);
-    auto cd_l = c * d;
-    auto cd_s = MulAdd(Neg(c), d, cd_l);
-    return (ab_l - cd_l > ab_s - cd_s);
-#endif
 }
 
 /**
@@ -158,20 +110,7 @@ right_turn(Vec<ScalableTag<double>> px,
 static inline bool
 greater_orient(Point p, Point u1, Point u2, Point q)
 {
-    /* Here the accurate version is necessary to validate on PBBS benchmark. */
-#if 1
     return (q.y - p.y) * (u1.x - u2.x) < (q.x - p.x) * (u1.y - u2.y);
-#else
-    double a = p.x - q.x;
-    double b = u1.y - u2.y;
-    double c = p.y - q.y;
-    double d = u1.x - u2.x;
-    double ab_l = a * b;
-    double ab_s = fma(-a, b, ab_l);
-    double cd_l = c * d;
-    double cd_s = fma(-c, d, cd_l);
-    return (ab_l - cd_l < ab_s - cd_s);
-#endif
 }
 
 static inline Mask<ScalableTag<double>>
@@ -180,19 +119,7 @@ greater_orient(Vec<ScalableTag<double>> px,  Vec<ScalableTag<double>> py,
                Vec<ScalableTag<double>> u2x, Vec<ScalableTag<double>> u2y,
                Vec<ScalableTag<double>> qx,  Vec<ScalableTag<double>> qy)
 {
-#if 1
     return (qx - px) * (u1y - u2y) > (qy - py) * (u1x - u2x);
-#else
-    auto a = px - qx;
-    auto b = u1y - u2y;
-    auto c = py - qy;
-    auto d = u1x - u2x;
-    auto ab_l = a * b;
-    auto ab_s = MulAdd(Neg(a), b, ab_l);
-    auto cd_l = c * d;
-    auto cd_s = MulAdd(Neg(c), d, cd_l);
-    return (ab_l - cd_l < ab_s - cd_s);
-#endif
 }
 
 /******************************************************************************
@@ -288,18 +215,18 @@ FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
 
     size_t left_ind = 0;
     size_t right_ind = 0;
-    for (size_t i = 1; i < min(Lanes(d), n); i++) {
-        if ((leftx_arr[i] < leftx_arr[left_ind]) ||
-                ((leftx_arr[i] == leftx_arr[left_ind]) &&
-                    (lefty_arr[i] < lefty_arr[left_ind])))
+    for (size_t j = 1; j < min(Lanes(d), n); j++) {
+        if ((leftx_arr[j] < leftx_arr[left_ind]) ||
+                ((leftx_arr[j] == leftx_arr[left_ind]) &&
+                    (lefty_arr[j] < lefty_arr[left_ind])))
         {
-            left_ind = i;
+            left_ind = j;
         }
-        if ((rightx_arr[i] > rightx_arr[right_ind]) ||
-                ((rightx_arr[i] == rightx_arr[right_ind]) &&
-                    (righty_arr[i] > righty_arr[right_ind])))
+        if ((rightx_arr[j] > rightx_arr[right_ind]) ||
+                ((rightx_arr[j] == rightx_arr[right_ind]) &&
+                    (righty_arr[j] > righty_arr[right_ind])))
         {
-            right_ind = i;
+            right_ind = j;
         }
     }
 
@@ -600,94 +527,27 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
 /**
  * Operates on block cyclic subarray of P described by block, nthreads, n.
  * See paper for a picture.
- * Writes block < Lanes(d) elements starting at i = k + j, where j < block.
+ * Writes num < Lanes(d) elements
  **/
 static inline
-void Blockcyc_Write(size_t num, size_t k, size_t j, Vecd x_coor, Vecd y_coor,
-                    Points P, size_t block, unsigned int nthreads)
+void Blockcyc_Write(size_t num, BlockCycIndex i, 
+                    Vecd x_coor, Vecd y_coor, Points P)
 {
     const ScalableTag<double> d;
 
-    if (j + num <= block) {
-        StoreN(x_coor, d, P.x + k + j, num);
-        StoreN(y_coor, d, P.y + k + j, num);
+    if (i.j + num <= block) {
+        StoreN(x_coor, d, P.x + i.i, num);
+        StoreN(y_coor, d, P.y + i.i, num);
     } else {
-        size_t countL = block - j;
+        size_t countL = i.block - i.j;
         size_t countR = num - countL;
-        StoreN(x_coor, d, P.x + k + j, countL);
-        StoreN(y_coor, d, P.y + k + j, countL);
-        k += nthreads * block;
+        StoreN(x_coor, d, P.x + i.i, countL);
+        StoreN(y_coor, d, P.y + i.i, countL);
+        i.k += nthreads * block;
         x_coor = SlideDownLanes(d, x_coor, countL);
         y_coor = SlideDownLanes(d, y_coor, countL);
-        StoreN(x_coor, d, P.x + k, countR);
-        StoreN(y_coor, d, P.y + k, countR);
-    }
-}
-
-static inline
-void Blockcyc_Sub(size_t &k, size_t &j, size_t count,
-                  size_t block, unsigned int nthreads)
-{
-    assert(count < block);
-    if (j >= count) {
-        j -= count;
-    } else {
-        k -= nthreads * block;
-        j += block - count;
-    }
-    assert(j < block);
-}
-
-static inline
-void Blockcyc_Add(size_t &k, size_t &j, size_t count,
-                  size_t block, unsigned int nthreads)
-{
-    assert(count < block);
-    if (j + count < block) {
-        j += count;
-    } else {
-        k += nthreads * block;
-        j = j + count - block;
-    }
-    assert(j < block);
-}
-
-/**
- * Computes the distance between k1 + j1 and k2 + j2 as if
- * the block cyclic subarray was compacted.
- */
-static inline
-size_t Blockcyc_Dist(size_t k1, size_t j1,
-                     size_t k2, size_t j2,
-                     unsigned int nthreads)
-{
-    assert(k1 >= k2);
-    assert((k1 - k2) / nthreads + j1 >= j2);
-    assert(k1 + j1 >= k2 + j2);
-    return (k1 - k2) / nthreads + j1 - j2;
-}
-
-/**
- * Finds the 'supremum' of i in the subarray belonging to thread t.
- * That is, the smallest number greater or equal to i in t's subarray.
- */
-static inline
-void Blockcyc_Sup(unsigned int t, size_t i, size_t block, unsigned int nthreads,
-                  size_t *k, size_t *j)
-{
-    assert(i >= t * block);
-    if ((i / block) % nthreads == t) {
-        /* i is in P(t), so sup is i */
-        *j = i % block;
-        *k = i - *j;
-    } else if (i < t * block) {
-        *k = t * block;
-        *j = 0;
-    } else {
-        /* sup is smallest t * block + l * nthreads * block >= i. */
-        size_t l = ceildiv(i - t * block, nthreads * block);
-        *k = t * block + l * nthreads * block;
-        *j = 0;
+        StoreN(x_coor, d, P.x + i.k, countR);
+        StoreN(y_coor, d, P.y + i.k, countR);
     }
 }
 
@@ -698,8 +558,7 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
                      Vecd &max1x, Vecd &max1y,
                      Vecd &max2x, Vecd &max2y,
                      Points P,
-                     size_t &writeLk, size_t &writeLj,
-                     size_t &writeRk, size_t &writeRj,
+                     BlockCycIndex &writeL, BlockCycIndex &writeR,
                      Vecd x_coor, Vecd y_coor,
                      size_t block, unsigned int nthreads)
 {
@@ -720,15 +579,14 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     auto tempxL = Compress(x_coor, maskL);
     auto tempyL = Compress(y_coor, maskL);
 
-    Blockcyc_Write(num_l, writeLk, writeLj, tempxL, tempyL, P, block, nthreads);
-    Blockcyc_Add(writeLk, writeLj, num_l, block, nthreads);
+    Blockcyc_Write(num_l, writeL, tempxL, tempyL, P);
+    writeL += nul_l;
 
     size_t num_r = CountTrue(d, maskR);
-    Blockcyc_Sub(writeRk, writeRj, num_r, block, nthreads);
+    writeR -= num_r;
     auto tempxR = Compress(x_coor, maskR);
     auto tempyR = Compress(y_coor, maskR);
-    Blockcyc_Write(num_r, writeRk, writeRj, tempxR, tempyR, P,
-                   block, nthreads);
+    Blockcyc_Write(num_r, writeR, tempxR, tempyR, P);
 }
 
 /**
@@ -763,64 +621,54 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     max2x = rx;
     max2y = ry;
 
-    size_t writeLk = start;
-    size_t writeLj = 0;
+    BlockCycIndex writeL = BlockCycBegin(start / block, nthreads, block);
+    BlockCycIndex writeR = BlockCycSup(start / block, block, nthreads, n);
 
-    size_t writeRk, writeRj;
-    Blockcyc_Sup(start / block, n, block, nthreads, &writeRk, &writeRj);
+    BlockCycIndex last_point = writeR;
 
-    size_t last_pointk = writeRk;
-    size_t last_pointj = writeRj;
+    BlockCycIndex readL = writeL;
+    BlockCycIndex readR = writeR;
 
-    size_t readLk = writeLk;
-    size_t readLj = writeLj;
-    size_t readRk = writeRk;
-    size_t readRj = writeRj;
+    vLx = LoadU(d, P.x + readL.i);
+    vLy = LoadU(d, P.y + readL.i);
+    readL += Lanes(d);
 
-    assert((readLk + readLj) / block % nthreads == start / block);
+    readR -= Lanes(d);
+    vRx = LoadU(d, P.x + readR.i);
+    vRy = LoadU(d, P.y + readR.i);
 
-    vLx = LoadU(d, P.x + readLk + readLj);
-    vLy = LoadU(d, P.y + readLk + readLj);
-    Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
+    assert(readR.i / block % nthreads == start / block);
 
-    Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
-    vRx = LoadU(d, P.x + readRk + readRj);
-    vRy = LoadU(d, P.y + readRk + readRj);
-
-    assert((readRk + readRj) / block % nthreads == start / block);
-
-    while (readLk + readLj + Lanes(d) <= readRk + readRj) {
-        size_t cap_left = Blockcyc_Dist(readLk, readLj, writeLk, writeLj,
-                                        nthreads);
-        size_t cap_right = Blockcyc_Dist(writeRk, writeRj, readRk, readRj,
-                                         nthreads);
+    while (readL.i + Lanes(d) <= readR.i) {
+        size_t cap_left = readL - writeL;
+        size_t cap_right = writeR - readR;
         if (cap_left <= cap_right) {
-            x_coor = LoadU(d, P.x + readLk + readLj);
-            y_coor = LoadU(d, P.y + readLk + readLj);
+            x_coor = LoadU(d, P.x + readL.i);
+            y_coor = LoadU(d, P.y + readL.i);
 
-            assert((readLk + readLj) / block % nthreads == start / block);
-
-            Blockcyc_Add(readLk, readLj, Lanes(d), block, nthreads);
+            assert(readL.i / block % nthreads == start / block);
+            readL += Lanes(d);
         } else {
-            Blockcyc_Sub(readRk, readRj, Lanes(d), block, nthreads);
+            readR -= Lanes(d);
+            assert(readR.i / block % nthreads == start / block);
 
-            assert((readRk + readRj) / block % nthreads == start / block);
-
-            x_coor = LoadU(d, P.x + readRk + readRj);
-            y_coor = LoadU(d, P.y + readRk + readRj);
+            x_coor = LoadU(d, P.x + readR.i);
+            y_coor = LoadU(d, P.y + readR.i);
         }
 
         /* Also advances the write pointer.
          * FIXME(?): less code that way, but you can't tell without inspecting
          * the function. Bad idea? Perhaps pass by pointer instead of pass
          * by reference. */
-        assert((writeRk + writeRj) / block % nthreads == start / block);
+        assert(writeR.i / block % nthreads == start / block);
         Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                             max1x, max1y, max2x, max2y, P, writeLk, writeLj,
-                             writeRk, writeRj, x_coor, y_coor,
+                             max1x, max1y, max2x, max2y, P, writeL,
+                             writeR, x_coor, y_coor,
                              block, nthreads);
-        assert((writeRk + writeRj) / block % nthreads == start / block);
+        assert(writeR.i / block % nthreads == start / block);
     }
+
+    /* LEFTOFF HERE */
 
     /* [readL, readR[ is empty because they both start at something
      * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
@@ -1035,8 +883,7 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         total2s[me][0] = total2;
         r1s[me][0]     = r1;
         r2s[me][0]     = r2;
-
-   }
+    }
 
     Point r1      = r1s[0][0];
     Point r2      = r2s[0][0];
@@ -1097,15 +944,17 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
                     {DBL_MAX, DBL_MAX});
     }
 
-    size_t i, k;
-    if (c1_max >= c2_min) {
-        dnf(P, c1_min, c2_max, p, r, q, &i, &k);
-    } else {
-        dnf_gap(P, c1_min, c2_max, c1_max, c2_min, p, r, q, &i, &k);
-    }
+    {
+        size_t i, k;
+        if (c1_max >= c2_min) {
+            dnf(P, c1_min, c2_max, p, r, q, &i, &k);
+        } else {
+            dnf_gap(P, c1_min, c2_max, c1_max, c2_min, p, r, q, &i, &k);
+        }
 
-    assert(total1 == i);
-    assert(total2 == n - k);
+        assert(total1 == i);
+        assert(total2 == n - k);
+    }
 
     /**
      * P now looks like:
