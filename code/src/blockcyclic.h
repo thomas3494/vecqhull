@@ -31,11 +31,11 @@ inline
 void operator-=(BlockCycIndex& i, size_t count)
 {
     assert(count < i.block);
-    if (i.j + count < i.block) {
-        i.j += count;
+    if (i.j >= count) {
+        i.j -= count;
     } else {
-        i.k += i.p * i.block;
-        i.j = i.j + count - i.block;
+        i.k -= i.p * i.block;
+        i.j += i.block - count;
     }
     i.i = i.k + i.j;
     assert(i.j < i.block);
@@ -47,8 +47,9 @@ size_t operator-(BlockCycIndex i1, BlockCycIndex i2)
 {
     assert(i1.p == i2.p);
     assert(i1.t == i2.t);
+
     assert(i1.k >= i2.k);
-    assert((i1.k - i2.k) / i1.p + i1.j >= i2.j2);
+    assert((i1.k - i2.k) / i1.p + i1.j >= i2.j);
     assert(i1.k + i1.j >= i2.k + i2.j);
     return (i1.k - i2.k) / i1.p + i1.j - i2.j;
 }
@@ -86,6 +87,8 @@ BlockCycIndex BlockCycSup(unsigned int t, size_t block, unsigned int p,
         index.k = t * block + l * p * block;
         index.j = 0;
     }
+
+    index.i = index.i + index.k;
 
     return index;
 }
