@@ -16,6 +16,8 @@ size_t VecQuickhull(size_t n, double *x_coor, double *y_coor);
 
 /**
  * Same as VecQuickhull, but parallelised with OpenMP 
+ * For the best performance, make sure x_coor = y_coor mod 64
+ * (to avoid false sharing).
  **/
 size_t VecQuickhullP(size_t n, double *x_coor, double *y_coor);
 

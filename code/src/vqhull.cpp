@@ -52,12 +52,6 @@ typedef struct {
  *****************************************************************************/
 
 static inline size_t 
-ceildiv(size_t a, size_t b)
-{
-    return (a + b - 1) / b;
-}
-
-static inline size_t 
 max(size_t a, size_t b)
 {
     return (a > b) ? a : b;
@@ -535,7 +529,7 @@ void Blockcyc_Write(size_t num, BlockCycIndex i,
 {
     const ScalableTag<double> d;
 
-    if (i.j + num <= block) {
+    if (i.j + num <= i.block) {
         StoreN(x_coor, d, P.x + i.i, num);
         StoreN(y_coor, d, P.y + i.i, num);
     } else {
@@ -543,7 +537,7 @@ void Blockcyc_Write(size_t num, BlockCycIndex i,
         size_t countR = num - countL;
         StoreN(x_coor, d, P.x + i.i, countL);
         StoreN(y_coor, d, P.y + i.i, countL);
-        i.k += nthreads * block;
+        i.k += i.p * i.block;
         x_coor = SlideDownLanes(d, x_coor, countL);
         y_coor = SlideDownLanes(d, y_coor, countL);
         StoreN(x_coor, d, P.x + i.k, countR);
@@ -559,8 +553,7 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
                      Vecd &max2x, Vecd &max2y,
                      Points P,
                      BlockCycIndex &writeL, BlockCycIndex &writeR,
-                     Vecd x_coor, Vecd y_coor,
-                     size_t block, unsigned int nthreads)
+                     Vecd x_coor, Vecd y_coor)
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
@@ -580,7 +573,7 @@ Blockcyc_TriLoopBody(Vecd px, Vecd py,
     auto tempyL = Compress(y_coor, maskL);
 
     Blockcyc_Write(num_l, writeL, tempxL, tempyL, P);
-    writeL += nul_l;
+    writeL += num_l;
 
     size_t num_r = CountTrue(d, maskR);
     writeR -= num_r;
@@ -663,40 +656,35 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
         assert(writeR.i / block % nthreads == start / block);
         Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
                              max1x, max1y, max2x, max2y, P, writeL,
-                             writeR, x_coor, y_coor,
-                             block, nthreads);
+                             writeR, x_coor, y_coor);
         assert(writeR.i / block % nthreads == start / block);
     }
-
-    /* LEFTOFF HERE */
 
     /* [readL, readR[ is empty because they both start at something
      * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
      * a time. */
-    assert(readLk + readLj == readRk + readRj);
+    assert(readL.i == readR.i);
 
     /* vL, vR */
-    assert((writeRk + writeRj) / block % nthreads == start / block);
+    assert(writeR.i / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         max1x, max1y, max2x, max2y, P, writeLk, writeLj,
-                         writeRk, writeRj, vLx, vLy,
-                         block, nthreads);
+                         max1x, max1y, max2x, max2y, P, writeL,
+                         writeR, vLx, vLy);
 
-    assert((writeRk + writeRj) / block % nthreads == start / block);
+    assert(writeR.i / block % nthreads == start / block);
     Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         max1x, max1y, max2x, max2y, P, writeLk, writeLj,
-                         writeRk, writeRj, vRx, vRy,
-                         block, nthreads);
+                         max1x, max1y, max2x, max2y, P, writeL,
+                         writeR, vRx, vRy);
 
     qhull_hmax(max1x, max1y, max2x, max2y, px, py, rx, ry, qx, qy,
                r1_out, r2_out);
 
-    *c1_out = writeLk + writeLj;
-    *c2_out = writeRk + writeRj;
+    *c1_out = writeL.i;
+    *c2_out = writeR.i;
 
-    *total1_out = Blockcyc_Dist(writeLk, writeLj, start, 0, nthreads);
-    *total2_out = Blockcyc_Dist(last_pointk, last_pointj, writeRk, writeRj,
-                                nthreads);
+    BlockCycIndex first_point = BlockCycBegin(start / block, nthreads, block);
+    *total1_out = writeL - first_point;
+    *total2_out = last_point - writeR;
 }
 
 /**
