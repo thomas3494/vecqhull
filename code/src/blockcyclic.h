@@ -65,7 +65,7 @@ ceildiv(size_t a, size_t b)
  * That is, the smallest number greater or equal to i in t's subarray.
  **/
 inline
-BlockCycIndex BlockCycSup(unsigned int t, size_t block, unsigned int p,
+BlockCycIndex BlockCycSup(unsigned int t, unsigned int p, size_t block,
                           size_t i)
 {
     assert(i >= t * block);

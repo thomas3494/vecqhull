@@ -615,7 +615,7 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     max2y = ry;
 
     BlockCycIndex writeL = BlockCycBegin(start / block, nthreads, block);
-    BlockCycIndex writeR = BlockCycSup(start / block, block, nthreads, n);
+    BlockCycIndex writeR = BlockCycSup(start / block, nthreads, block, n);
 
     BlockCycIndex last_point = writeR;
 
