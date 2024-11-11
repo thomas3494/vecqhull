@@ -20,7 +20,7 @@ void equi_circle(long n)
 
 long *permute(long n)
 {
-    long *indices = malloc(n * sizeof(long));
+    long *indices = (long *)malloc(n * sizeof(long));
     for (long i = 0; i < n; i++) {
         indices[i] = i;
     }

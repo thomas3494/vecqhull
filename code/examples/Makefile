@@ -1,7 +1,12 @@
 CC = g++
 CXX = g++
 FLAGS = -O3 -march=native -mtune=native
-LFLAGS = -lvqhull -fopenmp -lm -fsanitize=undefined -fsanitize=address -lhwy
+LFLAGS = -lvqhull -fopenmp -lm -lhwy # -fsanitize=undefined -fsanitize=address
+
+ifneq ("$(wildcard ~/.local/include/energy_bench.h)","")
+	LFLAGS += -lenergy_bench -DENERGY
+endif
+
 EXAMPLES = $(filter-out util, $(patsubst %.c, %, $(wildcard *.c)))
 
 .PHONY: all clean

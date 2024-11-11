@@ -4,8 +4,8 @@
 #include <string.h>
 #include <vqhull.h>
 
-#ifdef RAPL_ENERGY
-#include <rapl_energy.h>
+#ifdef ENERGY
+#include <energy_bench.h>
 #endif
 
 #include "util.h"
@@ -44,21 +44,21 @@ int main(int argc, char **argv)
     size_t n;
     Points P = (binary) ? input_b(&n) : input(&n);
 
-    #ifdef RAPL_ENERGY
-    struct RaplEnergy *rapl;
-    rapl = rapl_start();
-    #endif
-
+    #ifdef ENERGY
+    EnergyInfo *start = start_energy_measure();
+    #else
     double start = wtime();
-    size_t count = VecQuickhullP(n, P.x, P.y);
-    double stop = wtime();
-
-    #ifdef RAPL_ENERGY
-    struct RaplElapsed *elapsed;
-    elapsed = rapl_elapsed(rapl);
     #endif
 
+    size_t count = VecQuickhullP(n, P.x, P.y);
+
+    #ifdef ENERGY
+    EnergyResult *stop = stop_energy_measure(start);
+    double duration = energy_duration(&stop);
+    #else
+    double stop = wtime();
     double duration = stop - start;
+    #endif
 
     if (summary) {
         fprintf(stderr, "We found %zu elements on the hull\n", count);
@@ -68,21 +68,12 @@ int main(int argc, char **argv)
     }
 
     if (measure) {
-        printf("%lf", duration);
-        #ifdef RAPL_ENERGY
-        double total_energy = 0;
-        for (uintptr_t i = 0; i < elapsed->len; i++) {
-            total_energy += elapsed->energy[i];
-        }
-        printf(" %lf", total_energy);
+        #ifdef ENERGY
+        print_energy_results(&stop);
+        #else
+        printf("%lf\n", duration);
         #endif
-        printf("\n");
     }
-
-    #ifdef RAPL_ENERGY
-    elapsed_free(elapsed);
-    rapl_free(rapl);
-    #endif
 
     if (print) {
         PrintPoints(count, P);
@@ -90,6 +81,9 @@ int main(int argc, char **argv)
 
     free(P.x);
     free(P.y);
+    #ifdef ENERGY
+    free_energy_results(stop);
+    #endif
 
     return EXIT_SUCCESS;
 }
