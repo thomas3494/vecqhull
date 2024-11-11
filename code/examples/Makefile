@@ -1,7 +1,7 @@
-CC = gcc
+CC = g++
 CXX = g++
 FLAGS = -O3 -march=native -mtune=native
-LFLAGS = -lvqhull -fopenmp -lm
+LFLAGS = -lvqhull -fopenmp -lm -fsanitize=undefined -fsanitize=address -lhwy
 EXAMPLES = $(filter-out util, $(patsubst %.c, %, $(wildcard *.c)))
 
 .PHONY: all clean

@@ -21,9 +21,9 @@ make geometryData
 ./testData/geometryData/randPoints -S -d 2 "$n" ../data/circle_"$n".in
 ./testData/geometryData/randPoints -p -d 2 "$n" ../data/kuzmin_"$n".in)
 
-(cd code
-make bin/text2bin)
+(cd code/examples
+make text2bin)
 
-code/bin/text2bin < data/disk_"$n".in > data/disk_"$n".bin
-code/bin/text2bin < data/circle_"$n".in > data/circle_"$n".bin
-code/bin/text2bin < data/kuzmin_"$n".in > data/kuzmin_"$n".bin
+code/examples/text2bin < data/disk_"$n".in > data/disk_"$n".bin
+code/examples/text2bin < data/circle_"$n".in > data/circle_"$n".bin
+code/examples/text2bin < data/kuzmin_"$n".in > data/kuzmin_"$n".bin

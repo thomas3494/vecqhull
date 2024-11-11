@@ -20,7 +20,8 @@ n="$1"
 cd code || exit
 make clean
 make uninstall
-make install
+make clean
+BUILD=DEBUG make install
 )
 
 (
