@@ -15,9 +15,7 @@ void time_loop(int rounds, double delay, F initf, G runf, H endf) {
 
     EnergyInfo *start = start_energy_measure();
 
-    t.start();
     runf();
-    t.next("");
 
     EnergyResult *stop = stop_energy_measure(start);
     print_energy_results(&stop);
