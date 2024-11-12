@@ -1,10 +1,10 @@
 #!/bin/sh
 
 #SBATCH --account=csmpi
-#SBATCH --partition=csmpi_long
-#SBATCH --nodelist=cn128
+#SBATCH --partition=csmpi_long_fpga
+#SBATCH --nodelist=cn132
 #SBATCH --mem=0
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=32
 #SBATCH --time=1:00:00
 #SBATCH --output=bench_pbbs_serial.out
 

@@ -2,11 +2,11 @@
 
 #SBATCH --account=csmpi
 #SBATCH --partition=csmpi_long
-#SBATCH --nodelist=cn128
+#SBATCH --nodelist=cn125
 #SBATCH --mem=0
 #SBATCH --cpus-per-task=16
 #SBATCH --time=1:00:00
-#SBATCH --output=bench_pbbs_multi.out
+#SBATCH --output=bench_pbbs_serial.out
 
 if [ "$#" -ne 3 ]; then
     printf 'Usage: %s N ITER OUTDIR\n' "$0" >&2
@@ -23,14 +23,14 @@ outdir="$3"
 mkdir -p "$outdir"
 
 (
-cd pbbsbench/benchmarks/convexHull/quickHull || exit
+cd pbbsbench/benchmarks/convexHull/serialHull || exit
 make
 )
 
 bench()
 {
     name="$1"
-    numactl --interleave all pbbsbench/benchmarks/convexHull/quickHull/hull -r "$iter" data/"$name".in | sed 's/Parlay time: //g' | sed '/^$/d' | awk '{
+    numactl --interleave all pbbsbench/benchmarks/convexHull/serialHull/hull -r "$iter" data/"$name".in | sed 's/Parlay time: //g' | sed '/^$/d' | awk '{
                for (i = 1; i <= NF; i++) {
                    b[i] = a[i] + ($i - a[i]) / NR;
                    q[i] += ($i - a[i]) * ($i - b[i]);
@@ -42,7 +42,7 @@ bench()
                    printf ",%f,%f", a[i], sqrt(q[i] / NR);
                }
                print "";
-}' > "${outdir}/${name}_pbbs_multi.csv"
+             }' > "${outdir}/${name}_pbbs_serial.csv"
 }
 
 bench disk_"$n"

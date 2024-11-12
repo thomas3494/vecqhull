@@ -2,11 +2,11 @@
 
 #SBATCH --account=csmpi
 #SBATCH --partition=csmpi_long
-#SBATCH --nodelist=cn128
+#SBATCH --nodelist=cn125
 #SBATCH --mem=0
 #SBATCH --cpus-per-task=16
 #SBATCH --time=1:00:00
-#SBATCH --output=bench_quickhull.out
+#SBATCH --output=bench_quickhull_par.out
 
 if [ "$#" -ne 3 ]; then
     printf 'Usage: %s N ITER OUTDIR\n' "$0" >&2
@@ -32,7 +32,7 @@ make install
 (
 cd code/examples || exit
 make clean
-make test_quickhull
+make test_quickhull_par
 )
 
 bench()
@@ -42,7 +42,10 @@ bench()
         i=1
         while [ $i -le "$iter" ]
         do
-            numactl --interleave all ./code/examples/test_quickhull m b < data/"$name".bin
+            # For cn125
+            OMP_NUM_THREADS=8 numactl --interleave all -C 0-8 ./code/examples/test_quickhull_par m b < data/"$name".bin
+            # For cn132
+#            numactl --interleave all ./code/examples/test_quickhull_par m b < data/"$name".bin
             i=$(( i + 1 ))
         done
     } | awk '{
@@ -57,7 +60,7 @@ bench()
                    printf ",%f,%f", a[i], sqrt(q[i] / NR);
                }
                print "";
-             }' > "${outdir}/${name}_quickhull.csv"
+             }' > "${outdir}/${name}_quickhull_par.csv"
 }
 
 bench disk_"$n"
