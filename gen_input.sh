@@ -3,6 +3,7 @@
 #SBATCH --account=csmpi
 #SBATCH --partition=csmpi_long
 #SBATCH --mem=0
+#SBATCH --nodelist=cn125
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1:00:00
 #SBATCH --output=gen_input.out
