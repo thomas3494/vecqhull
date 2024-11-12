@@ -51,7 +51,6 @@ int main(int argc, char **argv)
     #endif
 
     size_t count = VecQuickhull(n, P.x, P.y);
-    double stop = wtime();
 
     #ifdef ENERGY
     EnergyResult *stop = stop_energy_measure(start);
