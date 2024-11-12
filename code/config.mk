@@ -14,7 +14,7 @@ SONAME    = libvqhull.so.$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 # do not use -ffast-math or -Ofast
 BUILD      ?= RELEASE
 FLAGS       = -O3 -march=native -mtune=native -Wall -Wextra -ffunction-sections -fdata-sections -fopenmp -nodefaultlibs -lgcc -fno-exceptions
-DEBUG_FLAGS = -fsanitize=address -fsanitize=undefined -ggdb
+DEBUG_FLAGS = -ggdb
 RELEASE_FLAGS = -D NDEBUG
 FLAGS += $(${BUILD}_FLAGS)
 LDFLAGS  = -lm -fopenmp -lhwy -Wl,--gc-sections
