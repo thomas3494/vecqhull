@@ -1,6 +1,6 @@
 #include "../parlay/internal/get_time.h"
 
-#include <rapl_energy.h>
+#include <energy_bench.h>
 
 template<class F, class G, class H>
 void time_loop(int rounds, double delay, F initf, G runf, H endf) {
@@ -13,24 +13,15 @@ void time_loop(int rounds, double delay, F initf, G runf, H endf) {
   for (int i=0; i < rounds; i++) {
     initf();
 
-    struct RaplEnergy *rapl;
-    rapl = rapl_start();
+    EnergyInfo *start = start_energy_measure();
 
     t.start();
     runf();
     t.next("");
 
-    struct RaplElapsed *elapsed;
-    elapsed = rapl_elapsed(rapl);
-
-    double total_energy = 0;
-    for (uintptr_t i = 0; i < elapsed->len; i++) {
-        total_energy += elapsed->energy[i];
-    }
-    printf(" %lf\n", total_energy);
-
-    elapsed_free(elapsed);
-    rapl_free(rapl);
+    EnergyResult *stop = stop_energy_measure(start);
+    print_energy_results(&stop);
+    free_energy_results(stop);
 
     endf();
   }
