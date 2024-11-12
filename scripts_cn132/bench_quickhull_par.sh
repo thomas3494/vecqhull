@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #SBATCH --account=csmpi
-#SBATCH --partition=csmpi_long_fpga
+#SBATCH --partition=csmpi_fpga_long
 #SBATCH --nodelist=cn132
 #SBATCH --mem=0
 #SBATCH --cpus-per-task=32
