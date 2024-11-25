@@ -102,6 +102,8 @@ $$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y).$$
 
 We write $frt(p, q, u, u')$ for the predicate $d(pq, u) > d(pq, u')$,
 and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
+\tkcomment{I guess this is not really distance, but more like signed-distance
+as it can be negative if $u$ is to the other side of $pq$.}
 
 \begin{lemma}\label{lem:farther}
     The computed predicate $\widehat{frt}$ is backward-stable in the 
@@ -152,15 +154,33 @@ and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
 
 \subsection{Numerical Stability of Quickhull}
 
-%\begin{theorem}
-%    We have implemented Quickhull in a way that is stable for three-point
-%    convex hulls, with an error bound of $\frac{6\epsilon}{1 - 6\epsilon}$
-%    on both the forward and backward error.
-%\end{theorem}
-%
-%\begin{proof}
-%    \tkcomment{
-%    For a set of points $P$, we find left-most point $p$ right-most point $q$,
-%    and another point $u$ on the convex hull. Assume without loss of generality
-%    that $rt(q, u', p)$ is false for all $u' \in P$.
-%\end{proof}
+\begin{theorem}
+    We have implemented Quickhull in a way that is stable for three-point
+    convex hulls, with an error bound of $\frac{6\epsilon}{1 - 6\epsilon}$
+    on both the forward and backward error.
+\end{theorem}
+
+\begin{proof}
+    For a set of points $P$, we find left-most point $p$ right-most point $q$,
+    and another point $u$ on the convex hull. Assume w.l.o.g. that this point
+    is identified as lying on the top side, so $\hat{rt}(p, u, q)$. 
+    \tkcomment{If $\hat{rt}(p, u, q)$ and $\hat{rt}(q, u, p)$, we break
+               ties toward $\hat{rt}(p, u, q)$.}
+    As all other points are discarded, we have $\neg\hat{rt}(p, v, u)$ and
+    $\hat{frt}(p, q, u, v)$ for all $v \in P \backslash \{p, u, q\}$.
+
+    Suppose the predicates $\neg rt(p, v, q)$ and $frt(p, q, u, v)$ are false.
+    By lemmata~\ref{lem:right-turn} and \ref{lem:farther}, the point $v$
+    is at most $\frac{6 \epsilon}{1 - 6\epsilon}M$ away from the line-segment
+    $pq$. Let $v_b$ be the point $v$ moved perpendicular to $pq$ until it is
+    on the line. With all these perturbations we get a set $P_b$ for which
+    the convex hull is correct. We have
+
+    $$d(P_b, P) / M < \frac{6 \epsilon}{1 - 6 \epsilon}$$
+
+    so that is both the forward and backward error. \tkcomment{We move $v_b$
+    by the maximum of the distances we get from both lemmata. So we need
+    to prove as well that moving a point further than that is still ok.}
+\end{proof}
+
+Induction on the recursion depth?
