@@ -1,10 +1,8 @@
 \section{Numerical Robustness}
 
-\tkcomment{I use a lot of big words in this section, but I don't know 
-what I am doing, so probably at least half is wrong.}
+An algorithm should not only be efficient, but also correct. 
 
-\tkcomment{Insert paragraph introducing general idea and motivation behind
-stability (robustness?)}
+$d(f(x), \widehat{f(x)}) \leq d(f(x), f(\hat{x})) + d(f(\hat{x}), \widehat{f(x)})$
 
 \subsection{Robustness Framework}
 
@@ -17,7 +15,7 @@ want an $\epsilon$-strong convex hull, which can be obtained efficiently
 from the approximate convex hull we compute.}
 
 We write $\epsilon$ for the machine precision, $2^{-53}$ for double-precision, 
-and $2^{-24}$ for single-precision.
+and $2^{-24}$ for single-precision. We ignore terms of order $O(\epsilon^2)$.
 
 \subsection{Accurate Evaluation of Right-Hand Turn}
 
@@ -35,13 +33,8 @@ can be lifted out of the loop. We denote the true evaluation of this inequality
 by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
 \begin{lemma}\label{lem:right-turn}
-    The computed predicate $\widehat{rt}$ is backward-stable in the 
-    following sense. If $\widehat{rt}(p, u, q)$ is true, there exists 
-    $\hat{u}$ such that 
-    $$\lVert u - \hat{u} \rVert < \frac{6\epsilon}{1 - 6\epsilon}M$$
-    and $rt(p, \hat{u}, q)$ is true. Furthermore, this $\hat{u}$ can be
-    obtained by moving $u$ perpendicular to $pq$ by a distance 
-    $\frac{6\epsilon}{1 - 6\epsilon}M$ or more.
+    If $\widehat{rt}(p, u, q)$ is true, but $rt(p, u, q)$ is not, or the
+    other way around, then $d(u, pq) < \frac{6\epsilon}{1 - 6\epsilon}M$.
 \end{lemma}
 
 \begin{proof}
@@ -49,7 +42,6 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
     operation. The IEEE-754 standard satisfies
     $fl(x \circ y) = (1 + \delta)(x \circ y)$, $|\delta| < \epsilon$ for
     $\circ \in \{+, -, \cdot\}$. This gives us
-
     $$fl(fl(p_x - u_x) fl(q_y - p_y)) < 
             fl(fl(p_y - u_y) fl(q_x - p_x)) \iff$$
     $$(p_x - u_x) (q_y - p_y) < \frac{(1 + \delta_1)(1 + \delta_2)(1 + \delta_3)}
@@ -57,35 +49,27 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 
     By a non-trivial (\tkcomment{but well-known?}) result, there is some $\theta$
     such that
-
     $$\frac{(1 + \delta_1)(1 + \delta_2)(1 + \delta_3)}{(1 + \delta_4)(1 + \delta_5)(1 + \delta_6)} = 1 + \theta$$
-
     and $|\theta| \leq \frac{6\epsilon}{1 - 6\epsilon} := \gamma_6$.
-
     That simplifies the equation to
-
     $$(p_x - u_x) (q_y - p_y) < (1 + \theta) (p_y - u_y) (q_x - p_x) \iff$$
     $$-\theta (p_y - u_y) (q_x - p_x) < orient(p, u, q).$$
 
-    If $rt(p, u, q)$ is true, we can take $\hat{u} = u$. If it is false,
-    we have $orient(p, u, q) \leq 0$, so
+    As $rt(p, u, q)$ is false, we have $orient(p, u, q) \leq 0$, so
     $|orient(p, u, q)| \leq \gamma_6 |(p_y - u_y) (q_x - p_x)|$.
-
-    Recall that 
-
+    We can now compute upper bound
     $$d(u, pq) = \frac{orient(p, u, q)}{2 \lVert p - q \rVert} \leq$$
     $$\frac{\gamma_6 |(p_y - u_y) (q_x - p_x)|}{2 \sqrt{(q_x - p_x)^2 + (q_y - p_y)^2}} \leq$$
     $$\frac{1}{2}\gamma_6 |p_y - u_y| \leq 
             \frac{1}{2} \gamma_6 (|p_y| + |u_y|)\gamma_6 M = \gamma_6 M.$$
 
-    So we can move $u$ by $\gamma_6 M$ or more to get 
-    $\hat{u}$ that is truly to the left of $pq$.
+    The case $rt(p, u, q)$ true but $\hat{rt}(p, u, q)$ false is analogous.
 \end{proof}
 
 \subsection{Accurate Evaluation of Distance Test}
 
 We can test whether $u$ is farther from $pq$ than $u'$ by comparing
-$orient(u, p, q)$ to $orient(u', p, q)$. So from a performance standpoint it
+$orient(u, p, q)$ to $orient(u', p, q)$. So it
 is tempting to compute the orientation once for each point, and then do both
 the right-turn test and the distance test with this quantity, but this
 runs into precision problems. We are not very much concerned with the
@@ -126,21 +110,21 @@ as it can be negative if $u$ is to the other side of $pq$.}
     $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) < 
             \theta(q_x - p_x) (u_y - u'_y),$$
 
-    for $|theta| < \gamma_6$. If $frt(p, q, u, u')$ is false, then
+    for $|\theta| < \gamma_6$. If $frt(p, q, u, u')$ is false, then
 
     $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) \geq 0,$$
 
     so 
 
     $$|(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y)| \leq 
-        |\theta(q_x - p_x) (u_y - u'_y)|. $$
+        |\theta(q_x - p_x) (u_y - u'_y)|.$$
 
     We also have 
 
     $$(q_y - p_y) (u_x - u'_x) - (q_x - p_x) (u_y - u'_y) =
-       orient(u, p, q) - orient(u', p, q) = $$
+       orient(u, p, q) - orient(u', p, q) =$$
     $$2 d(u, pq) \lVert p - q \rVert - 2 d(u', pq) \lVert p - q \rVert = 
-        2 \lVert p - q \rVert (d(u, pq) - d(u', pq)). $$
+        2 \lVert p - q \rVert (d(u, pq) - d(u', pq)).$$
 
     Taking this together yields
 
@@ -154,33 +138,68 @@ as it can be negative if $u$ is to the other side of $pq$.}
 
 \subsection{Numerical Stability of Quickhull}
 
+Like Quicksort, it is possible to construct an adverserial input where we have 
+$n$ levels of recursion, yielding $O(n^2)$ runtime. Likewise, the forward
+and backward error are also linear in the depth of the recursion.
+The depth is usually $O(1)$ or $O(\log n)$, but can be $O(n)$ in the worst 
+case (where the runtime also becomes unfeasible).
+
 \begin{theorem}
-    We have implemented Quickhull in a way that is stable for three-point
-    convex hulls, with an error bound of $\frac{6\epsilon}{1 - 6\epsilon}$
-    on both the forward and backward error.
+    We have implemented Quickhull in a way that is numerically stable.
+    The backward and forward error is bounded by $2\gamma_6d$,
+    where $d$ is the depth of the recursion. 
 \end{theorem}
 
 \begin{proof}
-    For a set of points $P$, we find left-most point $p$ right-most point $q$,
-    and another point $u$ on the convex hull. Assume w.l.o.g. that this point
-    is identified as lying on the top side, so $\hat{rt}(p, u, q)$. 
-    \tkcomment{If $\hat{rt}(p, u, q)$ and $\hat{rt}(q, u, p)$, we break
-               ties toward $\hat{rt}(p, u, q)$.}
-    As all other points are discarded, we have $\neg\hat{rt}(p, v, u)$ and
-    $\hat{frt}(p, q, u, v)$ for all $v \in P \backslash \{p, u, q\}$.
-
-    Suppose the predicates $\neg rt(p, v, q)$ and $frt(p, q, u, v)$ are false.
-    By lemmata~\ref{lem:right-turn} and \ref{lem:farther}, the point $v$
-    is at most $\frac{6 \epsilon}{1 - 6\epsilon}M$ away from the line-segment
-    $pq$. Let $v_b$ be the point $v$ moved perpendicular to $pq$ until it is
-    on the line. With all these perturbations we get a set $P_b$ for which
-    the convex hull is correct. We have
-
-    $$d(P_b, P) / M < \frac{6 \epsilon}{1 - 6 \epsilon}$$
-
-    so that is both the forward and backward error. \tkcomment{We move $v_b$
-    by the maximum of the distances we get from both lemmata. So we need
-    to prove as well that moving a point further than that is still ok.}
+    $\widehat{CH(S_1)} \approx CHq}$
 \end{proof}
 
-Induction on the recursion depth?
+\begin{proof}
+    We can view Algorithm~\ref{alg:quickhull_basic} as a single recursive 
+    function that takes $P$ and three points on $CH(P)$. We initialise the
+    algorithm by finding left-most and right-most points $p$, $q$ which
+    are guaranteed to be on $CH(P)$. We have never assumed that the triangle
+    formed by these three points is not degenerate, so we can pick `three'
+    points $p, q, p$ to start. The recursive structure of the resulting 
+    algorithm gives rise to an inductive argument. The induction hypothesis
+    says that if there exist $\hat{p}$, $\hat{q}$, $\hat{r}$ on
+    $CH(P \cup \{p, r, q\})$ satisfying $d(p, \hat{p}) < \gamma_6 M$, 
+    $d(r, \hat{r}) < \gamma_6 M$, $d(q, \hat{q}) < \gamma_6 M$, the backward
+    and forward error are bounded by $\gamma_6 d$. Proving this claim is enough
+    because the $p$ and $q$ we use for the first recursive call are themselves
+    on $CH(P)$ (they are found by coordinate comparison, which is exact).
+
+    For both the base case and induction step, we perturb $P$ as follows.
+    By Lemma~\ref{lem:right-turn}, all points that are classified incorrectly 
+    have a distance of at most $\gamma_6 M$ to either $pr$ or $rq$. If 
+    $u \in P$ has been incorrectly added $S_1$, we move it 
+    $\frac{d(u, pr) + \gamma_6 M}{2}$ perpendicular to $pr$. This yields a 
+    point $\hat{u}$ that satisfies $rt(p, u, r)$ and 
+    $d(u, \hat{u}) < \gamma_6 M$ by Lemma~\ref{lem:right-turn}. We do the same 
+    for points that have been incorrectly added to $S_2$. Points that were 
+    incorrectly discarded are moved to $pr$ (or equivalently $rq$). As each 
+    point has been moved at most $\gamma_6 M$, this yields a perturbed set 
+    $P'$ with subsets $S_1', S_2'$ such that $S_1'$, $S_2'$ are exact for $P'$, 
+    and $d(P, P'), d(S_1, S_1'), d(S_2, S_2') < \gamma_6$.
+
+    \tkcomment{TODO: case $|P| \leq 1$}
+    Consider the base case $d = 1$. As there are no recursive calls, we have 
+    $S_1 = S_2 = \emptyset$. The construction above gives us $P'$ for which
+    $\{p, r, q\}$ is at most $\gamma_6$ from some set 
+    $\{\hat{p}, \hat{r}, \hat{q}\}$ that are on $CH(P' \cup \{p, r, q\})$.
+
+    Moving on the the induction step, Lemma~\ref{lem:farther} tells us
+    that there exist $\hat{r}_1$ and $\hat{r}_2$ at most $\theta_6 M$ from
+    $r_1$, $r_2$ that are on the convex hull of $S_1$, $S_2$. By assumption,
+    $\hat{p}$ and $\hat{q}$ are on the convex hull of $P$, That means we
+    can apply the induction hypothesis. The recursive calls compute
+    $H_1 = \texttt{HULL}(S_1, p, r_1, r)$ such that some $H_1'$ is
+    the convex hull of some $S_1''$ where 
+    $d(H_1, H_1'), d(S_1, S_1'') < \gamma_6$, and similarly for $S_2$. 
+
+    Because of Jiang's forward error analysis, we know that 
+    $d(CH(S_1'), CH(S_1)) < \sqrt{2} \epsilon$.
+
+    Now $\hat{p} \cup H_1' \cup \hat{q} \cup \hat{H_2'}$ is the convex hull
+    of ...
+\end{proof}

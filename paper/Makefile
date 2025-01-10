@@ -9,11 +9,13 @@ SRC := paper.tex \
 	   conclusion.tex \
        paper.bib
 
-all: paper.pdf
+all: paper.pdf outline.pdf
 
 paper.pdf: $(SRC)
 	latexmk -pdf $<
-	grep Warning paper.log
+
+outline.pdf: outline.tex
+	latexmk -pdf $<
 
 paper.zip: $(SRC) paper.bbl lipics-v2021.cls
 	$(RM) paper.zip
