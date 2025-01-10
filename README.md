@@ -13,14 +13,13 @@ For Unix and derivatives like Linux, macOS, \*BSD.
 
 1. First install [Highway](https://github.com/google/highway)
 
-2. Set the compiler and installation prefix in `config.mk`
-
-3. Run `[sudo] make install`
+2. Run `sudo make install` on your own system, or something like
+`PREFIX=$HOME/.local make install` on a remote system you have no root
+access for. See `config.mk` for more options.
 
 ## Windows
 
-Pull requests welcome. For now, you can install WSL
-and follow the steps above.
+Pull requests welcome. For now, you can install WSL and follow the steps above.
 
 # Usage
 

@@ -4,10 +4,6 @@
 #include <string.h>
 #include <vqhull.h>
 
-#ifdef RAPL_ENERGY
-#include <rapl_energy.h>
-#endif
-
 #include "util.h"
 
 int main(int argc, char **argv)
@@ -44,19 +40,9 @@ int main(int argc, char **argv)
     size_t n;
     Points P = (binary) ? input_b(&n) : input(&n);
 
-    #ifdef RAPL_ENERGY
-    struct RaplEnergy *rapl;
-    rapl = rapl_start();
-    #endif
-
     double start = wtime();
-    size_t count = VecQuickhull(n, P.x, P.y);
+    size_t count = VecQuickhullP(n, P.x, P.y);
     double stop = wtime();
-
-    #ifdef RAPL_ENERGY
-    struct RaplElapsed *elapsed;
-    elapsed = rapl_elapsed(rapl);
-    #endif
 
     double duration = stop - start;
 
@@ -69,20 +55,8 @@ int main(int argc, char **argv)
 
     if (measure) {
         printf("%lf", duration);
-        #ifdef RAPL_ENERGY
-        double total_energy = 0;
-        for (uintptr_t i = 0; i < elapsed->len; i++) {
-            total_energy += elapsed->energy[i];
-        }
-        printf(" %lf", total_energy);
-        #endif
         printf("\n");
     }
-
-    #ifdef RAPL_ENERGY
-    elapsed_free(elapsed);
-    rapl_free(rapl);
-    #endif
 
     if (print) {
         PrintPoints(count, P);
