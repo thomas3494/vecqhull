@@ -1,36 +1,80 @@
 \section{Numerical Robustness}
 
-An algorithm should not only be efficient, but also correct. 
+An algorithm should not only be efficient, but also correct. When dealing
+with values in $\mathbb{R}$ it is unfeasible to compute exact solutions, as
+almost no real numbers can be stored in finite memory. Instead we should
+compute bounds on the approximations we do. The error between the true
+solution $f(x)$ of a problem $x$, and the computed solution $\widehat{f(x)}$
+is called the \textit{forward error}. 
 
-$d(f(x), \widehat{f(x)}) \leq d(f(x), f(\hat{x})) + d(f(\hat{x}), \widehat{f(x)})$
+We may also ask ourselves, for what $\hat{x}$ is our computed solution 
+$\widehat{f(x)}$, the actual solution $f(\hat{x})$. We call the error between 
+$x$ and $\hat{x}$ the \textit{backward error}. As the input has some 
+uncertainty, either from previous calculations or physical
+measurements, we may be satisfied with a small backward error as well.
+After all, we have no way of knowing whether this was the problem we were 
+actually interested in.
+
+We can connect these two ideas together with the idea of 
+\textit{perturbation analysis}:
+how large is the error between $f(x)$ and $f(\hat{x})$ compared with
+the error between $x$ and $\hat{x}$? If this is the same or small,
+we call the problem \textit{well-conditioned}, if not \textit{ill-conditioned}. 
+For a well-conditioned problem, as small backward error also implies a small 
+forward error.
+
+Algorithms whose forward and backward error grow slowly are called 
+\textit{numerically stable}.
+
+\subsection{Example: subtraction}
+
+A classic example is subtraction. This will also be useful for our analysis.
+The relative error $y$ of a number $x$ is the quantity $\frac{|x - y|}{x}$, or 
+equivalently $|\delta|$ for $y = (1 + \delta)x$. The computed difference
+$fl(a - b)$ of floating point numbers $a$, $b$ satisfies 
+$fl(a - b) = (1 + \epsilon)(a - b)$, where $\epsilon$ is smaller than the
+machine delta, $2^{-24}$ for single-precision and $2^{-53}$ for double 
+precision. This means we have a forward error bounded by $\epsilon$, and by 
+rewriting to $fl(a - b) = (1 + \epsilon)a - (1 + \epsilon)b$, also the backward 
+error is bounded by $\epsilon$. To look at the conditioning, we subtract two 
+perturbed values $\hat{a} = (1 + \delta_a)a$ and $\hat{b} = (1 + \delta_b)b$ 
+and compute the relative error
+$$\left|\frac{(a - b) - (\hat{a} - \hat{b})}{(a - b)}\right| = 
+\frac{|\delta_a a + \delta_b b|}{|a - b|} \leq 
+\max(|\delta_a|, |\delta_b|) \frac{|a| + |b|}{|a - b|}.$$
+
+We see that subtraction is ill-conditioned when $a \approx b$: small errors 
+$\delta_a$, $\delta_b$ in the input, are magnified by the subtraction. The 
+reader may recognize this as catastrophic cancellation. Note that this is only
+problematic if $a$, $b$ have been contaminated by error.
 
 \subsection{Robustness Framework}
 
-In a similar vein to \cite{Jiang06}, we define error between two sets
-$P$ and $P'$ as their Hausdorff distance divided by the maximum absolute
-value over their $x$-coordinates and $y$-coordinates $M$. We do not require
-the number of points to be the same as we have not defined the convex hull
-as a minimum representation. \tkcomment{If you do not want this, you probably
-want an $\epsilon$-strong convex hull, which can be obtained efficiently
-from the approximate convex hull we compute.}
+We first need to define what we consider errors. An intuitive distance between
+sets is the Hausdorff distance $d(A, B) := \max_{a \in A}d(a, B)$. We do not
+consider the error to grow larger when switching units from meters to 
+centimeters, so we scale this distance by the maximum absolute value of $x$- and
+$y$-coordinates $M$, yielding $d_M(A, B) := d(A, B) / M$. Once we fix $M$, this
+is a valid distance. This distance has as property that if each point in $P$
+is perturbed by at most $\delta M$ (Euclidean distance), the perturbed set 
+$\tilde{P}$ satisfies $d(P, \tilde{P}) < \delta$.
 
-We write $\epsilon$ for the machine precision, $2^{-53}$ for double-precision, 
-and $2^{-24}$ for single-precision. We ignore terms of order $O(\epsilon^2)$.
+We find that $d_M(CH(P), CH(\tilde{P})) \leq d_M(P, \tilde{P})$, so the convex 
+hull problem is well-conditioned. \tkcomment{Use Euclidean distance underneath
+Hausdorff.}
 
 \subsection{Accurate Evaluation of Right-Hand Turn}
 
 As discussed, we can decide whether $puq$ makes a right-hand turn by testing
-$orient(p, u, q) > 0$. We have $orient(p, u, q) = -orient(u, p, q)$, so
-we can equivalently compare
-
-$$(p_x - u_x) \cdot (q_y - p_y) - (p_y - u_y) \cdot (q_x - p_x) < 0 \iff$$
-$$(p_x - u_x) \cdot (q_y - p_y) - (p_y - u_y) \cdot (q_x - p_x) < 0 \iff$$
-$$(p_x - u_x) \cdot (q_y - p_y) < (p_y - u_y) \cdot (q_x - p_x).$$
-
-The number of operations are the same, but we evaluate this in a loop over $u$, 
-so this formulaton has the performance benefit that $q_x - p_x$ and $q_y - p_y$ 
-can be lifted out of the loop. We denote the true evaluation of this inequality
-by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
+$orient(p, u, q) > 0$. We can rewrite this to the inequality
+$(p_x - u_x) \cdot (q_y - p_y) < (p_y - u_y) \cdot (q_x - p_x)$. 
+We do not expect the subtractions to be dangerous as the arguments are input 
+values, and hence not contaminated by error. Denoting the true evaluation of 
+this inequality by $rt(p, u, q)$ and the computed evaluation by 
+$\widehat{rt}(p, u, q)$, we quantify this in Lemma~\ref{lem:right-turn}. 
+As $\widehat{rt}(p, u, q)$ is evaluated in a loop over $u$,
+this formulation also has the performance benefit that 
+$q_x - p_x$ and $q_y - p_y$ can be lifted out of the loop.
 
 \begin{lemma}\label{lem:right-turn}
     If $\widehat{rt}(p, u, q)$ is true, but $rt(p, u, q)$ is not, or the
@@ -69,23 +113,18 @@ by $rt(p, u, q)$ and the computed evaluation by $\widehat{rt}(p, u, q)$.
 \subsection{Accurate Evaluation of Distance Test}
 
 We can test whether $u$ is farther from $pq$ than $u'$ by comparing
-$orient(u, p, q)$ to $orient(u', p, q)$. So it
-is tempting to compute the orientation once for each point, and then do both
-the right-turn test and the distance test with this quantity, but this
-runs into precision problems. We are not very much concerned with the
-subtraction of coordinates because they are input values and hence not
-subject to errors (at least errors we control). However, the subtraction 
-in the middle does have round-off errors we introduce by the multiplications.
-
-So instead of working with orientations directly, we use that
-
-$$orient(p, u, q) > orient(p, u', q) \iff orient(u, p, q) < orient(u', p, q) 
-\iff$$
-
-$$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y).$$
-
+$orient(u, p, q)$ to $orient(u', p, q)$. This makes it tempting
+to compute the orientation once for each point, and then do both
+the right-turn test and the distance test with this quantity. However, this
+can run into precision problems because the middle subtraction in
+$$(u_x - p_x)(q_y - u_y) \bm{-} (u_y - p_y)(q_x - u_x)$$
+takes arguments that are poluted by error.
+Instead we use the equivalent test
+$$(q_y - p_y) (u_x - u'_x) < (q_x - p_x) (u_y - u'_y)$$
+to eliminate any subtractions on computed values.
 We write $frt(p, q, u, u')$ for the predicate $d(pq, u) > d(pq, u')$,
-and $\widehat{frt}(p, q, u, u')$ for the computed predicate.
+and $\widehat{frt}(p, q, u, u')$ for the computed predicate. This is also
+accurate as proven in Lemma~\ref{lem:farther}.
 \tkcomment{I guess this is not really distance, but more like signed-distance
 as it can be negative if $u$ is to the other side of $pq$.}
 
@@ -146,28 +185,19 @@ case (where the runtime also becomes unfeasible).
 
 \begin{theorem}
     We have implemented Quickhull in a way that is numerically stable.
-    The backward and forward error is bounded by $2\gamma_6d$,
-    where $d$ is the depth of the recursion. 
+    The backward error is bounded by $\gamma_6$, and the forward error by
+    $\gamma_6 d$, where $d$ is the depth of the recursion. 
 \end{theorem}
 
 \begin{proof}
-    $\widehat{CH(S_1)} \approx CHq}$
-\end{proof}
+    \tkcomment{We can view this algorithm as a single recursive call with 
+    degenerate left-most point...}
 
-\begin{proof}
-    We can view Algorithm~\ref{alg:quickhull_basic} as a single recursive 
-    function that takes $P$ and three points on $CH(P)$. We initialise the
-    algorithm by finding left-most and right-most points $p$, $q$ which
-    are guaranteed to be on $CH(P)$. We have never assumed that the triangle
-    formed by these three points is not degenerate, so we can pick `three'
-    points $p, q, p$ to start. The recursive structure of the resulting 
-    algorithm gives rise to an inductive argument. The induction hypothesis
-    says that if there exist $\hat{p}$, $\hat{q}$, $\hat{r}$ on
-    $CH(P \cup \{p, r, q\})$ satisfying $d(p, \hat{p}) < \gamma_6 M$, 
-    $d(r, \hat{r}) < \gamma_6 M$, $d(q, \hat{q}) < \gamma_6 M$, the backward
-    and forward error are bounded by $\gamma_6 d$. Proving this claim is enough
-    because the $p$ and $q$ we use for the first recursive call are themselves
-    on $CH(P)$ (they are found by coordinate comparison, which is exact).
+    We start by showing inductively that \texttt{HULL} of 
+    Algorithm~\ref{alg:quickhull_basic} computes a $\widehat{CH(\hat{P})}$
+    with $d_M(\widehat{CH(\hat{P})}, CH(\hat{P})) < 2\gamma_6 d$ (forward error)
+    and $d_M(\hat{P}, P) < 2\gamma_6 d$ (backward error), so long as $p$, $r$,
+    $q$ are at most $\gamma_6 M$ away from $CH(P \cup \{p, r, q\})$.
 
     For both the base case and induction step, we perturb $P$ as follows.
     By Lemma~\ref{lem:right-turn}, all points that are classified incorrectly 
@@ -177,29 +207,30 @@ case (where the runtime also becomes unfeasible).
     point $\hat{u}$ that satisfies $rt(p, u, r)$ and 
     $d(u, \hat{u}) < \gamma_6 M$ by Lemma~\ref{lem:right-turn}. We do the same 
     for points that have been incorrectly added to $S_2$. Points that were 
-    incorrectly discarded are moved to $pr$ (or equivalently $rq$). As each 
-    point has been moved at most $\gamma_6 M$, this yields a perturbed set 
-    $P'$ with subsets $S_1', S_2'$ such that $S_1'$, $S_2'$ are exact for $P'$, 
+    incorrectly discarded are moved to $pr$ (or equivalently $rq$). By 
+    Lemma~\ref{lem:farther} we move $r_1$ at most $\gamma_6 M$ further from
+    $pr$ if it had been incorrectly classified as the farthest point, and 
+    analogous for $r_2$. This is the same direction as we did for 
+    Lemma~\ref{lem:right-turn}.
+    As each point has been moved at most $\gamma_6 M$, this yields a perturbed 
+    set $P'$ with subsets $S_1', S_2'$ such that $S_1'$, $S_2'$ are exact for $P'$, 
     and $d(P, P'), d(S_1, S_1'), d(S_2, S_2') < \gamma_6$.
 
-    \tkcomment{TODO: case $|P| \leq 1$}
-    Consider the base case $d = 1$. As there are no recursive calls, we have 
+    \textbf{Induction hypothesis:}
+    So $CH(P' \cup \{p, r, q\}) = \{p\} \cup CH(S_1', p, r_1', r) \cup \{r\}
+        CH(S_2', r, r_2', q) \cup \{q\}$.
+    By induction hypothesis there exists $S_1''$ for which
+    $d_M(\widehat{CH}(S_1'', p, r_1', r), CH(S_1', p, r_1', r)) < 
+    (d - 1) \gamma_6$.
+    By the perturbation analysis 
+    $d_M(CH(S_1', p, r_1', r), CH(S_1, p, r_1, r)) \leq 
+    d_M(S_1', S_1) \leq \gamma_6$.
+    So by triangle inequality 
+    $d_M(\widehat{CH}(S_1'', p, r_1', r), CH(S_1, p, r_1, r)) < d \gamma_6$.
+
+    \textbf{Base case:}
+    As there are no recursive calls, we have 
     $S_1 = S_2 = \emptyset$. The construction above gives us $P'$ for which
     $\{p, r, q\}$ is at most $\gamma_6$ from some set 
     $\{\hat{p}, \hat{r}, \hat{q}\}$ that are on $CH(P' \cup \{p, r, q\})$.
-
-    Moving on the the induction step, Lemma~\ref{lem:farther} tells us
-    that there exist $\hat{r}_1$ and $\hat{r}_2$ at most $\theta_6 M$ from
-    $r_1$, $r_2$ that are on the convex hull of $S_1$, $S_2$. By assumption,
-    $\hat{p}$ and $\hat{q}$ are on the convex hull of $P$, That means we
-    can apply the induction hypothesis. The recursive calls compute
-    $H_1 = \texttt{HULL}(S_1, p, r_1, r)$ such that some $H_1'$ is
-    the convex hull of some $S_1''$ where 
-    $d(H_1, H_1'), d(S_1, S_1'') < \gamma_6$, and similarly for $S_2$. 
-
-    Because of Jiang's forward error analysis, we know that 
-    $d(CH(S_1'), CH(S_1)) < \sqrt{2} \epsilon$.
-
-    Now $\hat{p} \cup H_1' \cup \hat{q} \cup \hat{H_2'}$ is the convex hull
-    of ...
 \end{proof}

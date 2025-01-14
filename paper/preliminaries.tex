@@ -34,8 +34,9 @@ to the right of $uq$ still need to be considered.
             \State $r_1 := \argmax\limits_{u \in S_1}distance(u, pr)$.
             \State $S_2 := \{u \in P \ | \ right\_turn(r, u, q)\}$
             \State $r_2 := \argmax\limits_{u \in S_2}distance(u, rq)$.
-            \State $H := \{p\} \cup $ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
-                   $\cup \{q\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$}
+            \State $H := \{p\}$ \Call{Hull}{$S_1$, $p$, $r_1$, $r$}
+                   $\cup \{r\} \cup$ \Call{Hull}{$S_2$, $r$, $r_2$, $q$} 
+                   $\cup \{q\}$.
         \EndIf
     \EndFunction
 \end{algorithmic}
