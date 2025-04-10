@@ -1,6 +1,6 @@
 /**
  * vqhull - computes the convex hull
- * Copyright (C) 2024 Thomas Koopman and Jordy Aaldering 
+ * Copyright (C) 2025 Thomas Koopman and Jordy Aaldering 
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,20 @@
 using namespace hwy::HWY_NAMESPACE;
 
 /******************************************************************************
+ * Tuning parameters.
+ *****************************************************************************/
+
+/* Has to fit in L1d (this is 16 KiB per core). For write-combining */
+constexpr int WC_BLOCK = 512;
+/* Parameter of block-cyclic distribution. Using WC_BLOCK here as well appears 
+ * to be slower for NUMA architectures. It is unclear why, WC_BLOCK = 512
+ * gives exactly one page per block, so the writes should be local. Maybe
+ * the processor numbering is bad for recursive calls. */
+constexpr int BLOCK = 8192;
+static_assert(BLOCK % WC_BLOCK == 0, 
+              "write-combine blocksize must fit in block size");
+
+/******************************************************************************
  * Type definitions
  *****************************************************************************/
 
@@ -46,6 +60,22 @@ typedef struct {
     double *x;
     double *y;
 } Points;
+
+/**
+ * For write combining, see 11.5.5 of the Intel Optimization Reference Manual, 
+ * Volume I (2024).
+ **/
+template<int wc_buf_len>
+struct WC_buf {
+    double x[wc_buf_len];
+    double y[wc_buf_len];
+};
+
+template<int wc_buf_len>
+struct WC_buf_lr {
+    struct WC_buf<wc_buf_len> L;
+    struct WC_buf<wc_buf_len> R;
+};
 
 /*****************************************************************************
  * Utility functions
@@ -228,35 +258,121 @@ FindLeftRightV(size_t n, Points P, size_t *left_out, size_t *right_out)
     *right_out = ExtractLane(r_i, right_ind);
 }
 
+/**
+ * Block cyclic has better locality on NUMA systems where pages are allocated
+ * round-robin style on separate RAM sticks.
+ **/
 static void 
-FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out)
+FindLeftRightBC(size_t n, Points P, size_t start, unsigned int nthreads,
+                size_t *left_out, size_t *right_out)
 {
-    unsigned int nthreads;
-    size_t block;
-    #pragma omp parallel master
-    {
-        nthreads = omp_get_num_threads();
-        block = ceildiv(n, nthreads);
+    assert(n % BLOCK              == 0);
+    assert(BLOCK % (2 * Lanes(d)) == 0);
+
+    const ScalableTag<double> d;
+    const ScalableTag<size_t> di;
+
+    Vecd leftx, lefty, rightx, righty, x_coor, y_coor;
+    /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4)
+     * vtestpd has a throughput of 1, wheareas min, max, blend, vcmppd have a
+     * throughput of 0.5 or less. For this reason we unroll the loop. */
+    Vecd x_coor2, y_coor2;
+    Veci l_i, r_i;
+    Mask<ScalableTag<double>> mask1, mask2;
+    l_i = Iota(di, 0);
+    r_i = Iota(di, 0);
+
+    for (size_t I = start; I < n; I += nthreads * BLOCK) {
+        for (size_t i = I; i < I + BLOCK; i += 2 * Lanes(d)) {
+            x_coor = LoadU(d, P.x + i);
+            x_coor2 = LoadU(d, P.x + i + Lanes(d));
+            mask1 = (Min(x_coor, x_coor2) <= leftx);
+            mask2 = (Max(x_coor, x_coor2) >= rightx);
+            /* Unlikely assuming no adverserial input. */
+            if (HWY_UNLIKELY(!AllFalse(d, Or(mask1, mask2)))) {
+                y_coor = LoadU(d, P.y + i);
+                mask1 = Or((x_coor < leftx),
+                           And((x_coor == leftx), (y_coor < lefty)));
+                mask2 = Or((x_coor > rightx),
+                           And((x_coor == rightx), (y_coor > righty)));
+                leftx = IfThenElse(mask1,  x_coor, leftx);
+                lefty = IfThenElse(mask1,  y_coor, lefty);
+                rightx = IfThenElse(mask2, x_coor, rightx);
+                righty = IfThenElse(mask2, y_coor, righty);
+                l_i = IfThenElse(RebindMask(di, mask1), Iota(di, i), l_i);
+                r_i = IfThenElse(RebindMask(di, mask2), Iota(di, i), r_i);
+    
+                y_coor2 = LoadU(d, P.y + i + Lanes(d));
+                mask1 = Or((x_coor2 < leftx),
+                           And((x_coor2 == leftx), (y_coor2 < lefty)));
+                mask2 = Or((x_coor2 > rightx),
+                           And((x_coor2 == rightx), (y_coor2 > righty)));
+                leftx = IfThenElse(mask1,  x_coor2, leftx);
+                lefty = IfThenElse(mask1,  y_coor2, lefty);
+                rightx = IfThenElse(mask2, x_coor2, rightx);
+                righty = IfThenElse(mask2, y_coor2, righty);
+                l_i = IfThenElse(RebindMask(di, mask1),
+                                 Iota(di, i + Lanes(d)), l_i);
+                r_i = IfThenElse(RebindMask(di, mask2),
+                                 Iota(di, i + Lanes(d)), r_i);
+            }
+        }
     }
 
+    double leftx_arr[Lanes(d)];
+    double lefty_arr[Lanes(d)];
+    double rightx_arr[Lanes(d)];
+    double righty_arr[Lanes(d)];
+
+    StoreU(leftx,  d, leftx_arr);
+    StoreU(rightx, d, rightx_arr);
+    StoreU(lefty,  d, lefty_arr);
+    StoreU(righty, d, righty_arr);
+
+    size_t left_ind = 0;
+    size_t right_ind = 0;
+    for (size_t j = 1; j < min(Lanes(d), n); j++) {
+        if ((leftx_arr[j] < leftx_arr[left_ind]) ||
+                ((leftx_arr[j] == leftx_arr[left_ind]) &&
+                    (lefty_arr[j] < lefty_arr[left_ind])))
+        {
+            left_ind = j;
+        }
+        if ((rightx_arr[j] > rightx_arr[right_ind]) ||
+                ((rightx_arr[j] == rightx_arr[right_ind]) &&
+                    (righty_arr[j] > righty_arr[right_ind])))
+        {
+            right_ind = j;
+        }
+    }
+
+    *left_out  = ExtractLane(l_i, left_ind);
+    *right_out = ExtractLane(r_i, right_ind);
+}
+
+static void 
+FindLeftRightVP(size_t n, Points P, size_t *left_out, size_t *right_out,
+                unsigned int nthreads)
+{
     size_t lefts[nthreads];
     size_t rights[nthreads];
+    size_t left, right;
+
+    uintptr_t points_per_cacheline = 64 / sizeof(double);
+    uintptr_t n_off = (points_per_cacheline - ((uintptr_t)P.x % 64) /
+                                sizeof(double)) % points_per_cacheline;
+    FindLeftRightV(n_off, P, &left, &right);
 
     #pragma omp parallel
     {
         unsigned int me = omp_get_thread_num();
-        size_t start = me * block;
-        size_t end = min((me + 1) * block, n);
-        if (start < end) {
-            Points Q = {P.x + start, P.y + start};
-            FindLeftRightV(end - start, Q, lefts + me, rights + me);
-            lefts[me] += start;
-            rights[me] += start;
-        }
+        Points Q = {P.x + n_off, P.y + n_off};
+        FindLeftRightBC(n - n_off, Q, me * BLOCK, 
+                        nthreads, lefts + me, rights + me);
+        lefts[me]  += n_off;
+        rights[me] += n_off;
     }
 
-    size_t left = 0;
-    size_t right = 0;
     for (unsigned int i = 1; i < min(n, nthreads); i++) {
         if ((P.x[lefts[i]] < P.x[lefts[left]]) ||
                 ((P.x[lefts[i]] == P.x[lefts[left]]) &&
@@ -324,6 +440,43 @@ qhull_hmax(Vecd max1x, Vecd max1y,
     max1_out->y = GetLane(max1y);
     max2_out->x = GetLane(max2x);
     max2_out->y = GetLane(max2y);
+}
+
+template<int wc_buf_len>
+static inline void 
+TriLoopBodyWC(Vecd px, Vecd py,
+              Vecd rx, Vecd ry,
+              Vecd qx, Vecd qy,
+              Vecd &max1x, Vecd &max1y,
+              Vecd &max2x, Vecd &max2y,
+              WC_buf_lr<wc_buf_len> &wc_buf,
+              int &left, int &right,
+              Vecd x_coor, Vecd y_coor)
+{
+    const ScalableTag<double> d;
+    /* Finding r1, r2 */
+    auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
+    auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
+    max1x = IfThenElse(mask1, x_coor, max1x);
+    max1y = IfThenElse(mask1, y_coor, max1y);
+    max2x = IfThenElse(mask2, x_coor, max2x);
+    max2y = IfThenElse(mask2, y_coor, max2y);
+
+    /* Partition. */
+    auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
+    auto maskR = right_turn(rx, ry, x_coor, y_coor, qx, qy);
+    /* Mathematically it is impossible to make a right turn pur and ruq,
+     * but maskL and maskR can both evaluate to true due to rounding error.
+     * To avoid out-of-bound writes in that case we do the following check. */
+    maskR = And(maskR, Not(maskL));
+    /* No blended store necessary because we write from left to right */
+    size_t num_l = CompressStore(x_coor, maskL, d, wc_buf.L.x + left);
+    CompressStore(y_coor, maskL, d, wc_buf.L.y + left);
+    left += num_l;
+    size_t num_r = CountTrue(d, maskR);
+    CompressStore(x_coor, maskR, d, wc_buf.R.x + right);
+    CompressStore(y_coor, maskR, d, wc_buf.R.y + right);
+    right += num_r;
 }
 
 static inline void 
@@ -398,12 +551,48 @@ TriLoopBodyPartial(Vecd px, Vecd py,
     CompressBlendedStore(y_coor, maskR, d, P.y + writeR);
 }
 
+template<int wc_length>
+static inline void
+wc_write(Points P, size_t write, WC_buf<wc_length> &wc_buf, int local,
+         Vecd &x_coor, Vecd &y_coor)
+{
+    const ScalableTag<double> d;
+    for (int i = 0; i < WC_BLOCK; i += 2 * Lanes(d)) {
+        x_coor = LoadU(d, wc_buf.x + i);
+        y_coor = LoadU(d, wc_buf.x + i + Lanes(d));
+        StoreU(x_coor, d, P.x + write + i);
+        StoreU(y_coor, d, P.x + write + i + Lanes(d));
+    }
+    for (int i = 0; i < WC_BLOCK; i += 2 * Lanes(d)) {
+        x_coor = LoadU(d, wc_buf.y + i);
+        y_coor = LoadU(d, wc_buf.y + i + Lanes(d));
+        StoreU(x_coor, d, P.y + write + i);
+        StoreU(y_coor, d, P.y + write + i + Lanes(d));
+    }
+    for (int i = 0; i < local - WC_BLOCK; i++) {
+        wc_buf.x[i] = wc_buf.x[WC_BLOCK + i];
+        wc_buf.y[i] = wc_buf.y[WC_BLOCK + i];
+    }
+}
+
+template<int wc_length, int block>
+static inline void
+wc_write_partial(Points P, BlockCycIndex<block> write, 
+                 WC_buf<wc_length> &wc_buf, int local)
+{
+    for (int i = 0; i < local; i++) {
+        P.x[getIndex(write)] = wc_buf.x[i];
+        P.y[getIndex(write)] = wc_buf.y[i];
+        write += 1; 
+    }
+}
+
 /* Adapted from
  * https://arxiv.org/pdf/1704.08579
  * and
  * https://github.com/google/highway/blob/master/hwy/contrib/sort/vqsort-inl.h
  */
-static void 
+void
 TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
               Point *r1_out, Point *r2_out,
               size_t *c1_out, size_t *c2_out)
@@ -436,9 +625,10 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
      *         \/                                                      \/
      *  |  S1  | undef | bufferL |   unpartitioned   | bufferR | undef | S2 |
      *                           \/                  \/                     \/
-     *                          readL               readR                   num
+     *                          readL               readR                   n
      *
      **/
+
     size_t readL = Lanes(d);
     size_t readR = n - Lanes(d);
     size_t writeL = 0;
@@ -497,7 +687,7 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
         TriLoopBody(px, py, rx, ry, qx, qy,
                     max1x, max1y, max2x, max2y,
                     P, writeL, writeR, x_coor, y_coor);
-   }
+    }
 
     x_coor = LoadN(d, P.x + readL, readR - readL);
     y_coor = LoadN(d, P.y + readL, readR - readL);
@@ -519,70 +709,6 @@ TriPartitionV(size_t n, Points P, Point p, Point r, Point q,
 }
 
 /**
- * Operates on block cyclic subarray of P described by block, nthreads, n.
- * See paper for a picture.
- * Writes num < Lanes(d) elements
- **/
-static inline
-void Blockcyc_Write(size_t num, BlockCycIndex i, 
-                    Vecd x_coor, Vecd y_coor, Points P)
-{
-    const ScalableTag<double> d;
-
-    if (i.j + num <= i.block) {
-        StoreN(x_coor, d, P.x + i.i, num);
-        StoreN(y_coor, d, P.y + i.i, num);
-    } else {
-        size_t countL = i.block - i.j;
-        size_t countR = num - countL;
-        StoreN(x_coor, d, P.x + i.i, countL);
-        StoreN(y_coor, d, P.y + i.i, countL);
-        i.k += i.p * i.block;
-        x_coor = SlideDownLanes(d, x_coor, countL);
-        y_coor = SlideDownLanes(d, y_coor, countL);
-        StoreN(x_coor, d, P.x + i.k, countR);
-        StoreN(y_coor, d, P.y + i.k, countR);
-    }
-}
-
-static __attribute__((always_inline)) inline void
-Blockcyc_TriLoopBody(Vecd px, Vecd py,
-                     Vecd rx, Vecd ry,
-                     Vecd qx, Vecd qy,
-                     Vecd &max1x, Vecd &max1y,
-                     Vecd &max2x, Vecd &max2y,
-                     Points P,
-                     BlockCycIndex &writeL, BlockCycIndex &writeR,
-                     Vecd x_coor, Vecd y_coor)
-{
-    const ScalableTag<double> d;
-    /* Finding r1, r2 */
-    auto mask1 = greater_orient(px, py, x_coor, y_coor, max1x, max1y, rx, ry);
-    auto mask2 = greater_orient(rx, ry, x_coor, y_coor, max2x, max2y, qx, qy);
-    max1x = IfThenElse(mask1, x_coor, max1x);
-    max1y = IfThenElse(mask1, y_coor, max1y);
-    max2x = IfThenElse(mask2, x_coor, max2x);
-    max2y = IfThenElse(mask2, y_coor, max2y);
-
-    /* Partition */
-    auto maskL = right_turn(px, py, x_coor, y_coor, rx, ry);
-    auto maskR = right_turn(rx, ry, x_coor, y_coor, qx, qy);
-    maskR = And(maskR, Not(maskL));
-    size_t num_l = CountTrue(d, maskL);
-    auto tempxL = Compress(x_coor, maskL);
-    auto tempyL = Compress(y_coor, maskL);
-
-    Blockcyc_Write(num_l, writeL, tempxL, tempyL, P);
-    writeL += num_l;
-
-    size_t num_r = CountTrue(d, maskR);
-    writeR -= num_r;
-    auto tempxR = Compress(x_coor, maskR);
-    auto tempyR = Compress(y_coor, maskR);
-    Blockcyc_Write(num_r, writeR, tempxR, tempyR, P);
-}
-
-/**
  * P is an array on n points. We do a block cyclic distribution determined
  * by nthreads and block. So we have indices start, ..., start + block - 1,
  * start + nthreads * block, ..., start + nthreads + block + block - 1, ...
@@ -595,8 +721,7 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
                        Point *r1_out, Point *r2_out,
                        size_t *c1_out, size_t *c2_out,
                        size_t *total1_out, size_t *total2_out,
-                       size_t start, const size_t block,
-                       unsigned int nthreads)
+                       size_t start, unsigned int nthreads)
 {
     const ScalableTag<double> d;
 
@@ -614,75 +739,106 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     max2x = rx;
     max2y = ry;
 
-    BlockCycIndex writeL = BlockCycBegin(start / block, nthreads, block);
-    BlockCycIndex writeR = BlockCycSup(start / block, nthreads, block, n);
+    /* Some extra space so we do not write out-of-bounds, also when doing
+     * vL and vR. */
+    struct WC_buf_lr<WC_BLOCK + 2 * Lanes(d)> wc_buf;
+    int wc_left  = 0;
+    int wc_right = 0;
+
+    BlockCycIndex<BLOCK> writeL = 
+            BlockCycBegin<BLOCK>(start / BLOCK, nthreads);
+    BlockCycIndex<BLOCK> writeR = 
+            BlockCycSup<BLOCK>(start / BLOCK, nthreads, n);
+    assert(getIndex(writeL) % BLOCK == 0);
+    assert(getIndex(writeR) % BLOCK == 0);
 
     BlockCycIndex last_point = writeR;
 
     BlockCycIndex readL = writeL;
     BlockCycIndex readR = writeR;
 
-    vLx = LoadU(d, P.x + readL.i);
-    vLy = LoadU(d, P.y + readL.i);
+    vLx = LoadU(d, P.x + getIndex(readL));
+    vLy = LoadU(d, P.y + getIndex(readL));
     readL += Lanes(d);
 
     readR -= Lanes(d);
-    vRx = LoadU(d, P.x + readR.i);
-    vRy = LoadU(d, P.y + readR.i);
+    vRx = LoadU(d, P.x + getIndex(readR));
+    vRy = LoadU(d, P.y + getIndex(readR));
 
-    assert(readR.i / block % nthreads == start / block);
+    assert(getIndex(readR) / BLOCK % nthreads == start / BLOCK);
 
-    while (readL.i + Lanes(d) <= readR.i) {
-        size_t cap_left = readL - writeL;
-        size_t cap_right = writeR - readR;
+    while (getIndex(readL) + Lanes(d) <= getIndex(readR)) {
+        size_t cap_left = (readL - writeL) - wc_left;
+        size_t cap_right = (writeR - readR) - wc_right;
         if (cap_left <= cap_right) {
-            x_coor = LoadU(d, P.x + readL.i);
-            y_coor = LoadU(d, P.y + readL.i);
+            x_coor = LoadU(d, P.x + getIndex(readL));
+            y_coor = LoadU(d, P.y + getIndex(readL));
 
-            assert(readL.i / block % nthreads == start / block);
+            assert(getIndex(readL) / BLOCK % nthreads == start / BLOCK);
             readL += Lanes(d);
         } else {
             readR -= Lanes(d);
-            assert(readR.i / block % nthreads == start / block);
+            assert(getIndex(readR) / BLOCK % nthreads == start / BLOCK);
 
-            x_coor = LoadU(d, P.x + readR.i);
-            y_coor = LoadU(d, P.y + readR.i);
+            x_coor = LoadU(d, P.x + getIndex(readR));
+            y_coor = LoadU(d, P.y + getIndex(readR));
         }
 
-        /* Also advances the write pointer.
-         * FIXME(?): less code that way, but you can't tell without inspecting
-         * the function. Bad idea? Perhaps pass by pointer instead of pass
-         * by reference. */
-        assert(writeR.i / block % nthreads == start / block);
-        Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                             max1x, max1y, max2x, max2y, P, writeL,
-                             writeR, x_coor, y_coor);
-        assert(writeR.i / block % nthreads == start / block);
+        TriLoopBodyWC(px, py, rx, ry, qx, qy,
+                      max1x, max1y, max2x, max2y,
+                      wc_buf, wc_left, wc_right, 
+                      x_coor, y_coor);
+
+        /* Empty buffers with combined writes.
+         * We pass scratch registers because compilers are bad at
+         * register allocation. */
+        if (HWY_UNLIKELY(wc_left >= WC_BLOCK)) {
+            wc_write(P, getIndex(writeL), wc_buf.L, wc_left, x_coor, y_coor);
+            writeL += WC_BLOCK; 
+            wc_left -= WC_BLOCK;
+        }
+        if (HWY_UNLIKELY(wc_right >= WC_BLOCK)) {
+            writeR -= WC_BLOCK;
+            wc_write(P, getIndex(writeR), wc_buf.R, wc_right, x_coor, y_coor);
+            wc_right -= WC_BLOCK;
+        }
     }
 
-    /* [readL, readR[ is empty because they both start at something
-     * divisible by Lanes(d) and are (in/de)creased by Lanes(d) at
-     * a time. */
-    assert(readL.i == readR.i);
+    assert(getIndex(readL) == getIndex(readR));
 
-    /* vL, vR */
-    assert(writeR.i / block % nthreads == start / block);
-    Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         max1x, max1y, max2x, max2y, P, writeL,
-                         writeR, vLx, vLy);
+    TriLoopBodyWC(px, py, rx, ry, qx, qy,
+                  max1x, max1y, max2x, max2y,
+                  wc_buf, wc_left, wc_right, 
+                  vLx, vLy);
+    TriLoopBodyWC(px, py, rx, ry, qx, qy,
+                  max1x, max1y, max2x, max2y,
+                  wc_buf, wc_left, wc_right, 
+                  vRx, vRy);
 
-    assert(writeR.i / block % nthreads == start / block);
-    Blockcyc_TriLoopBody(px, py, rx, ry, qx, qy,
-                         max1x, max1y, max2x, max2y, P, writeL,
-                         writeR, vRx, vRy);
+    if (HWY_UNLIKELY(wc_left >= WC_BLOCK)) {
+        wc_write(P, getIndex(writeL), wc_buf.L, wc_left, x_coor, y_coor);
+        writeL += WC_BLOCK; 
+        wc_left -= WC_BLOCK;
+    }
+    if (HWY_UNLIKELY(wc_right >= WC_BLOCK)) {
+        writeR -= WC_BLOCK;
+        wc_write(P, getIndex(writeR), wc_buf.R, wc_right, x_coor, y_coor);
+        wc_right -= WC_BLOCK;
+    }
+
+    wc_write_partial(P, writeL, wc_buf.L, wc_left);
+    writeL += wc_left;
+    writeR -= wc_right;
+    wc_write_partial(P, writeR, wc_buf.R, wc_right);
 
     qhull_hmax(max1x, max1y, max2x, max2y, px, py, rx, ry, qx, qy,
                r1_out, r2_out);
 
-    *c1_out = writeL.i;
-    *c2_out = writeR.i;
+    *c1_out = getIndex(writeL);
+    *c2_out = getIndex(writeR);
 
-    BlockCycIndex first_point = BlockCycBegin(start / block, nthreads, block);
+    BlockCycIndex<BLOCK> first_point = 
+        BlockCycBegin<BLOCK>(start / BLOCK, nthreads);
     *total1_out = writeL - first_point;
     *total2_out = last_point - writeR;
 }
@@ -814,9 +970,8 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     const ScalableTag<double> d;
     uintptr_t points_per_cacheline = 64 / sizeof(double);
 
-    constexpr size_t block = 8192;
     if (nthreads <= 1 ||
-            n + points_per_cacheline + Lanes(d) < block * nthreads)
+            n + points_per_cacheline + Lanes(d) < BLOCK * nthreads)
     {
         TriPartitionV(n, P, p, r, q,
                       r1_out, r2_out, c1_out, c2_out);
@@ -831,8 +986,7 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
     P.x += n_off;
     P.y += n_off;
 
-    /* To ensure readL and readR can always load contiguous memory */
-    size_t n_end = n % Lanes(d);
+    size_t n_end = n % BLOCK;
     assert(n >= n_end);
     n -= n_end;
     assert(n % Lanes(d) == 0);
@@ -854,16 +1008,16 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         size_t c1, c2, total1, total2;
         Point r1, r2;
 
-        size_t start = me * block;
-        assert(n - me * block >= 2 * Lanes(d));
+        size_t start = me * BLOCK;
+        assert(n - me * BLOCK >= 2 * Lanes(d));
         TriPartititionBlockCyc(n, P, p, r, q,
                                &r1, &r2, &c1, &c2, &total1, &total2,
-                               start, block, nthreads);
+                               start, nthreads);
 
         assert(c1 >= start);
-        assert(c1 <= n + block * nthreads);
+        assert(c1 <= n + BLOCK * nthreads);
         assert(c2 >= start);
-        assert(c2 <= n * block * nthreads);
+        assert(c2 <= n * BLOCK * nthreads);
 
         c1s[me][0]     = c1;
         c2s[me][0]     = c2;
@@ -926,9 +1080,9 @@ TriPartitionP(size_t n, Points P, Point p, Point r, Point q,
         unsigned int t = omp_get_thread_num();
         size_t c1 = c1s[t][0];
         size_t c2 = c2s[t][0];
-        BlockCycSet(P, t, block, nthreads, c1, min(c1_max, c2),
+        BlockCycSet(P, t, BLOCK, nthreads, c1, min(c1_max, c2),
                     {DBL_MAX, DBL_MAX});
-        BlockCycSet(P, t, block, nthreads, max(c2_min, c1), c2,
+        BlockCycSet(P, t, BLOCK, nthreads, max(c2_min, c1), c2,
                     {DBL_MAX, DBL_MAX});
     }
 
@@ -1174,7 +1328,7 @@ size_t VecQuickhullP(size_t n, double *x_coor, double *y_coor)
     omp_set_max_active_levels(nthreads);
 
     size_t left, right;
-    FindLeftRightVP(n, P, &left, &right);
+    FindLeftRightVP(n, P, &left, &right, nthreads);
     Point p = {P.x[left], P.y[left]};
     Point q = {P.x[right], P.y[right]};
 
