@@ -266,11 +266,11 @@ static void
 FindLeftRightBC(size_t n, Points P, size_t start, unsigned int nthreads,
                 size_t *left_out, size_t *right_out)
 {
-    assert(n % BLOCK              == 0);
-    assert(BLOCK % (2 * Lanes(d)) == 0);
-
     const ScalableTag<double> d;
     const ScalableTag<size_t> di;
+
+    assert(n % BLOCK              == 0);
+    assert(BLOCK % (2 * Lanes(d)) == 0);
 
     Vecd leftx, lefty, rightx, righty, x_coor, y_coor;
     /* On most amd64 archtitectures (Alderlake, Sapphire, Skylake, zen2-4)
@@ -451,7 +451,8 @@ TriLoopBodyWC(Vecd px, Vecd py,
               Vecd &max2x, Vecd &max2y,
               WC_buf_lr<wc_buf_len> &wc_buf,
               int &left, int &right,
-              Vecd x_coor, Vecd y_coor)
+              Vecd x_coor, Vecd y_coor,
+              size_t &cap_left, size_t &cap_right)
 {
     const ScalableTag<double> d;
     /* Finding r1, r2 */
@@ -477,6 +478,8 @@ TriLoopBodyWC(Vecd px, Vecd py,
     CompressStore(x_coor, maskR, d, wc_buf.R.x + right);
     CompressStore(y_coor, maskR, d, wc_buf.R.y + right);
     right += num_r;
+    cap_left  -= num_l;
+    cap_right -= num_r;
 }
 
 static inline void 
@@ -767,27 +770,29 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
 
     assert(getIndex(readR) / BLOCK % nthreads == start / BLOCK);
 
+    size_t cap_left  = Lanes(d);
+    size_t cap_right = Lanes(d);
     while (getIndex(readL) + Lanes(d) <= getIndex(readR)) {
-        size_t cap_left = (readL - writeL) - wc_left;
-        size_t cap_right = (writeR - readR) - wc_right;
         if (cap_left <= cap_right) {
             x_coor = LoadU(d, P.x + getIndex(readL));
             y_coor = LoadU(d, P.y + getIndex(readL));
 
             assert(getIndex(readL) / BLOCK % nthreads == start / BLOCK);
             readL += Lanes(d);
+            cap_left += Lanes(d);
         } else {
             readR -= Lanes(d);
             assert(getIndex(readR) / BLOCK % nthreads == start / BLOCK);
 
             x_coor = LoadU(d, P.x + getIndex(readR));
             y_coor = LoadU(d, P.y + getIndex(readR));
+            cap_right += Lanes(d);
         }
 
         TriLoopBodyWC(px, py, rx, ry, qx, qy,
                       max1x, max1y, max2x, max2y,
                       wc_buf, wc_left, wc_right, 
-                      x_coor, y_coor);
+                      x_coor, y_coor, cap_left, cap_right);
 
         /* Empty buffers with combined writes.
          * We pass scratch registers because compilers are bad at
@@ -809,11 +814,13 @@ TriPartititionBlockCyc(size_t n, Points P, Point p, Point r, Point q,
     TriLoopBodyWC(px, py, rx, ry, qx, qy,
                   max1x, max1y, max2x, max2y,
                   wc_buf, wc_left, wc_right, 
-                  vLx, vLy);
+                  vLx, vLy,
+                  cap_left, cap_right);
     TriLoopBodyWC(px, py, rx, ry, qx, qy,
                   max1x, max1y, max2x, max2y,
                   wc_buf, wc_left, wc_right, 
-                  vRx, vRy);
+                  vRx, vRy,
+                  cap_left, cap_right);
 
     if (HWY_UNLIKELY(wc_left >= WC_BLOCK)) {
         wc_write(P, getIndex(writeL), wc_buf.L, wc_left, x_coor, y_coor);
